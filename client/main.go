@@ -1,0 +1,506 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
+	"time"
+
+	"pbl/client/game"
+	"pbl/client/models"
+	"pbl/client/utils"
+	"pbl/shared"
+	"pbl/style"
+
+	"github.com/nats-io/nats.go"
+)
+
+func main() {
+	servers := []models.ServerInfo{
+		{ID: 1, Name: "Servidor 1", NATS: "nats://localhost:4223"},
+		{ID: 2, Name: "Servidor 2", NATS: "nats://localhost:4224"},
+		{ID: 3, Name: "Servidor 3", NATS: "nats://localhost:4225"},
+	}
+
+	chooseString := utils.EscolherServidor()
+	chooseInt, err := strconv.Atoi(chooseString)
+	if err != nil || chooseInt < 1 || chooseInt > len(servers) {
+		fmt.Println("Escolha inválida.")
+		return
+	}
+	chosenServer := servers[chooseInt-1]
+	fmt.Printf("\nVocê escolheu: %s (ID=%d)\n", chosenServer.Name, chosenServer.ID)
+
+	nc, err := nats.Connect(chosenServer.NATS, nats.MaxReconnects(0), 
+		nats.DisconnectErrHandler(func(nc *nats.Conn, err error){
+			fmt.Println("CONEXÃO PERDIDA COM O SERVER")
+			if err != nil {
+				log.Fatalf("Erro ao conectar no NATS do servidor escolhido: %v", err)
+			}
+			fmt.Println("Cliente encerrando em 2 segundos...")
+			time.Sleep(2*time.Second)
+			os.Exit(1)
+		}),
+	)
+	if err != nil{
+		log.Fatalf("Erro ao conectar no NATS do servidor escolhido: %v", err)
+	}
+	fmt.Println("Conectado ao NATS do servidor escolhido:", chosenServer.NATS)
+
+	clientID := fmt.Sprintf("cliente%d", utils.GerarIdAleatorio())
+	fmt.Printf("\nSeu ID desta sessão é: %s\n", clientID)
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		logout(nc, chosenServer, clientID)
+		os.Exit(0)
+	}()
+
+	handleMainMenu(nc, chosenServer, clientID)
+}
+
+func handleMainMenu(nc *nats.Conn, server models.ServerInfo, clientID string) {
+	for {
+		option := utils.MenuInicial()
+		switch option {
+		case "1":
+			user, success := sendLoginRequest(nc, server, clientID)
+			if success {
+				user.UserId = clientID
+				startGameLoop(nc, server, clientID, user)
+			}
+		case "2":
+			fmt.Println("Até mais!")
+			return
+		default:
+			fmt.Println("Opção inválida, tente novamente.")
+		}
+	}
+}
+
+func sendLoginRequest(nc *nats.Conn, server models.ServerInfo, clientID string) (shared.User, bool) {
+	credentials := utils.Login()
+	jsonData, err := json.Marshal(credentials)
+	if err != nil {
+		fmt.Printf("\nErro ao converter para JSON: %v", err)
+		return shared.User{}, false
+	}
+
+	req := shared.Request{
+		ClientID: clientID,
+		Action:   "LOGIN",
+		Payload:  json.RawMessage(jsonData),
+	}
+	reqData, _ := json.Marshal(req)
+
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+	if err != nil {
+		fmt.Println("Erro ao enviar requisição de login:", err)
+		return shared.User{}, false
+	}
+
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		fmt.Printf("\nErro ao decodificar resposta do servidor: %v", err)
+		return shared.User{}, false
+	}
+
+	if response.Status == "success" {
+		var user shared.User
+		user.UserId = clientID
+		if err := json.Unmarshal(response.Data, &user); err != nil {
+			fmt.Printf("\nErro ao decodificar dados do usuário: %v", err)
+			return shared.User{}, false
+		}
+		fmt.Println("\nLogin realizado com sucesso!")
+		return user, true
+	}
+
+	fmt.Println("\nFalha no login:", response.Error)
+	return shared.User{}, false
+}
+
+func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, user shared.User) {
+	serverTopic := fmt.Sprintf("server.%d.requests", server.ID)
+	startHeartbeat(nc, clientID, serverTopic) 
+	startPingLoop(nc, clientID, serverTopic) 
+
+	
+	for {
+		option := utils.ShowMenuPrincipal()
+		switch option {
+		case "1":
+			clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
+			matchChan := make(chan game.MatchInfo, 1)
+			
+			sub := game.StartGameListener(nc, clientID, matchChan, user)
+			subGlobal := game.HandleStartGlobalMatchListener(server.ID, nc, clientID, matchChan)
+			defer func() {
+				if subGlobal != nil {
+					subGlobal.Unsubscribe()
+				}
+			}()
+			
+			success := game.JoinQueue(nc, server, &user, clientTopic)
+			if !success {
+				fmt.Println("Não foi possível entrar na fila.")
+				if sub != nil {
+					sub.Unsubscribe()
+				}
+				continue
+			}
+
+			fmt.Println("Esperando por um adversário...")
+			
+			select {
+			case matchInfo := <-matchChan:
+				if sub != nil {
+					sub.Unsubscribe()
+				}
+				
+				fmt.Printf("\n✓ Match confirmado! Jogando contra: %s\n", matchInfo.Opponent.UserName)
+				if matchInfo.IsGlobal { 
+					game.PlayGlobalGame(nc, &matchInfo.Room, user, matchInfo.Opponent)
+				} else {
+					game.PlayLocalGame(nc, &matchInfo.Room, user, matchInfo.Opponent)
+				}
+				//playLocalGame(nc, &matchInfo.Room, user, matchInfo.Opponent)
+			}
+
+		case "2":
+			style.Clear()
+			menuCard(nc, server, clientID, &user)
+		case "3":
+			style.Clear()
+			handleClientDrawCard(nc, server, clientID)
+		case "4":
+			style.Clear()
+			fmt.Println("Troca de cartas não implementada")
+		case "5":
+			style.Clear()
+			utils.ShowRules()
+		case "6":
+			style.Clear()
+			fmt.Println("Ping não implementado")
+		case "7":
+			style.Clear()
+			fmt.Println("Deslogando...")
+			logout(nc, server, clientID)
+			return
+
+		default:
+			fmt.Println("Opção inválida.")
+		}
+	}
+}
+
+func menuCard(nc *nats.Conn, server models.ServerInfo, clientID string, user *shared.User){
+	sair := false
+	for !sair{
+		option := utils.ShowMenuCards()
+		switch option{
+		case "1":
+			style.Clear()
+			handleClientSeeCards(nc, server, clientID)
+		case "2":
+			style.Clear()
+			handleChangeDeck(nc, server, clientID, user)
+		case "3":
+			style.Clear()
+			handleClientSeeDeck(nc, server, clientID)
+		case "4":
+			sair = true
+		}
+	}
+}
+
+// logout envia mensagem de LOGOUT
+func logout(nc *nats.Conn, server models.ServerInfo, clientID string) {
+	req := shared.Request{
+		ClientID: clientID,
+		Action:   "LOGOUT",
+	}
+	reqData, _ := json.Marshal(req)
+
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+	if err != nil {
+		log.Println("Erro ao enviar requisição de logout:", err)
+		return
+	}
+
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		fmt.Printf("\nErro ao decodificar resposta de logout: %v", err)
+		return
+	}
+
+	if response.Status == "success" {
+		fmt.Printf("\nLogout realizado com sucesso no servidor %d.", response.Server)
+	} else {
+		fmt.Printf("\nFalha no logout: %s", response.Error)
+	}
+}
+
+func handleClientDrawCard(nc *nats.Conn, server models.ServerInfo, clienteID string) {
+	fmt.Println("Enviando requisição para pegar uma carta...")
+	req := shared.Request{
+		ClientID: clienteID,
+		Action:   "OPEN_PACK",
+		Payload:  nil,
+	}
+	reqData, _ := json.Marshal(req)
+
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+
+	if err != nil {
+		log.Printf("Erro na requisição para pegar carta: %v", err)
+		return // Sai da função imediatamente para evitar o crash.
+	}
+
+	// Como segurança extra, verificamos se a mensagem é válida antes de usá-la.
+	if msg == nil || msg.Data == nil {
+		log.Printf("O servidor retornou uma resposta vazia.")
+		return
+	}
+
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		log.Printf("Erro ao decodificar resposta da carta: %v", err)
+		return
+	}
+
+	if response.Status == "success" {
+		var drawnData shared.CardDrawnData
+		if err := json.Unmarshal(response.Data, &drawnData); err != nil {
+			log.Printf("Erro ao decodificar os dados da carta: %v", err)
+			return
+		}
+		style.PrintVerd("\n[SUCESSO] Você pegou uma carta!\n")
+		fmt.Printf("   -> Carta:")
+		utils.PrintCartaCor(drawnData.Card)
+		fmt.Print("\n")
+	} else {
+		msg := fmt.Sprintf("\n[FALHA] Não foi possível pegar a carta: %s\n", response.Error)
+		style.PrintVerm(msg)
+	}
+}
+
+func handleClientSeeCards(nc *nats.Conn, server models.ServerInfo, clientID string)[]shared.Card{
+	fmt.Println("Buscando cartas...")
+	req := shared.Request{
+		ClientID: clientID,
+		Action: "SEE_CARDS",
+		Payload: nil,
+	}
+	reqData,_ := json.Marshal(req)
+
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+
+	if err != nil {
+		log.Printf("Erro na requisição para pegar carta: %v", err)
+		return nil// Sai da função imediatamente para evitar o crash
+	}
+
+	if msg == nil || msg.Data == nil{
+		log.Printf("O servidor retornou uma resposta vazia.")
+		return nil
+	}
+
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		log.Printf("Erro ao decodificar resposta do inventário: %v", err)
+		return nil
+	}
+
+	if response.Status == "success"{
+		var inventario shared.Cards
+		if err := json.Unmarshal(response.Data, &inventario); err != nil {
+			log.Printf("Erro ao decodificar os dados do inventario: %v", err)
+			return nil
+		}
+		utils.MostrarInventario(inventario.Cards)
+		return inventario.Cards
+	} else {
+		msg := fmt.Sprintf("\n[FALHA] Não foi possível ver inventário: %s\n", response.Error)
+		style.PrintVerm(msg)
+	}
+
+	return nil
+}
+
+func handleChangeDeck(nc *nats.Conn, server models.ServerInfo, clientID string, user *shared.User){
+	cards := handleClientSeeCards(nc, server, clientID)
+	deck := choseDeck(cards)
+	utils.MostrarInventario(deck)
+
+
+	deckCodf, err := json.Marshal(deck)
+	if err!=nil{
+		fmt.Printf("\nErro ao converter para JSON: %v", err)
+		return
+	}
+	req := shared.Request{
+		ClientID: clientID,
+		Action: "CHANGE_DECK",
+		Payload: deckCodf,
+	}
+	reqData, _ := json.Marshal(req)
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+	if err != nil{
+		fmt.Printf("\nErro ao salvar deck: %v", err)
+		return
+
+	}
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		fmt.Printf("\nErro ao decodificar resposta do servidor: %v", err)
+		return
+	}
+	if response.Status == "success"{
+		user.Deck = deck 
+		style.PrintVerd("Deck salvo!")
+	} else {
+		style.PrintVerm("Erro ao salvar deck, tente novamente")
+	}
+}
+
+func choseDeck(cards []shared.Card) []shared.Card{
+	var selectedCards []int
+	var deck []shared.Card
+	if cards != nil{
+		for i := range(4){
+			valida := false
+			for ! valida{
+				fmt.Printf("Digite o número da %d° carta para o baralho: ", i+1)
+				in := utils.ReadLineSafe()
+				if inInt, err := strconv.Atoi(in); err == nil {
+					if inInt>=0 && inInt<len(cards) && !utils.Contains(selectedCards, inInt){
+						deck = append(deck, cards[inInt])
+						selectedCards = append(selectedCards, inInt)
+						valida = true
+					}else{
+						style.PrintMag("Valor inválido\n")
+					}
+				}else{
+					style.PrintMag("Valor inválido, digite o número da carta!\n")
+				}
+			}
+		}
+	}
+	
+	return deck
+}
+
+
+func handleClientSeeDeck(nc *nats.Conn, server models.ServerInfo, clientID string)[]shared.Card{
+	fmt.Println("Buscando cartas...")
+	req := shared.Request{
+		ClientID: clientID,
+		Action: "SEE_DECK",
+		Payload: nil,
+	}
+	reqData,_ := json.Marshal(req)
+
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+
+	if err != nil {
+		log.Printf("Erro na requisição para pegar carta: %v", err)
+		return nil// Sai da função imediatamente para evitar o crash
+	}
+
+	if msg == nil || msg.Data == nil{
+		log.Printf("O servidor retornou uma resposta vazia.")
+		return nil
+	}
+
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		log.Printf("Erro ao decodificar resposta do inventário: %v", err)
+		return nil
+	}
+
+	if response.Status == "success"{
+		var inventario shared.Cards
+		if err := json.Unmarshal(response.Data, &inventario); err != nil {
+			log.Printf("Erro ao decodificar os dados do deck: %v", err)
+			return nil
+		}
+		utils.MostrarInventario(inventario.Cards)
+		return inventario.Cards
+	} else {
+		msg := fmt.Sprintf("\n[FALHA] Não foi possível ver deck: %s\n", response.Error)
+		style.PrintVerm(msg)
+	}
+
+	return nil
+}
+
+
+// startHeartbeat envia HEARTBEAT periódico
+func startHeartbeat(nc *nats.Conn, clientID, serverTopic string) {
+	go func() {
+		for {
+			req := shared.Request{
+				Action:  "HEARTBEAT",
+				Payload: nil,
+			}
+			data, _ := json.Marshal(req)
+			nc.Publish(serverTopic, data)
+			time.Sleep(5 * time.Second)
+		}
+	}()
+}
+
+func startClientListener(nc *nats.Conn, clientID string, pongChan chan bool) {
+	clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
+	nc.Subscribe(clientTopic, func(msg *nats.Msg) {
+		var resp shared.Response
+		if err := json.Unmarshal(msg.Data, &resp); err != nil {
+			log.Println("Erro ao decodificar mensagem do servidor:", err)
+			return
+		}
+
+		if resp.Action == "PONG" {
+			pongChan <- true // sinaliza que servidor respondeu
+		}
+	})
+}
+
+func startPingLoop(nc *nats.Conn, clientID string, serverTopic string) {
+	pongChan := make(chan bool)
+	startClientListener(nc, clientID, pongChan)
+
+	go func() {
+		for {
+			// envia PING
+			req := shared.Request{
+				ClientID: clientID,
+				Action:   "PING",
+			}
+			data, _ := json.Marshal(req)
+			nc.Publish(serverTopic, data)
+
+			// aguarda PONG (timeout)
+			select {
+			case <-pongChan:
+				// tudo certo
+			case <-time.After(10 * time.Second):
+				fmt.Println("\nServidor não respondeu ao PING, tentando reconectar...")
+			}
+
+			time.Sleep(5 * time.Second) // envia PING a cada 5s
+		}
+	}()
+}
