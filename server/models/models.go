@@ -5,26 +5,30 @@ import (
 	"pbl/shared"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hashicorp/raft"
 	"github.com/nats-io/nats.go"
 )
 
 type Server struct {
-	ID      int
-	Port    string
-	SelfURL string
-	Peers   []PeerInfo
-	Raft    *raft.Raft
-	Users   map[string]shared.User
-	Mu      sync.Mutex
+	ID          int
+	Port        string
+	SelfURL     string
+	Peers       []PeerInfo
+	Raft        *raft.Raft
+	Users       map[string]shared.User
+	Mu          sync.Mutex
 	Matchmaking Matchmaking
-	FSM *fsm.FSM
+	FSM         *fsm.FSM
+	Blockchain  *ethclient.Client
+
+	Exchange ExchangeMatchmaking
 }
 
 type Message struct {
-	From    int    `json:"from"`
+	From int    `json:"from"`
 	Type string `json:"msg_type"`
-	Msg     string `json:"msg"`
+	Msg  string `json:"msg"`
 }
 
 type PeerInfo struct {
@@ -42,6 +46,12 @@ type Matchmaking struct {
 	LocalQueue  []shared.QueueEntry
 	GlobalQueue []shared.QueueEntry //só o líder vai usar
 	Mutex       sync.Mutex
-	Nc          *nats.Conn   // conexão com NATS
-	IsLeader    bool         // indica se este servidor é o líder
+	Nc          *nats.Conn // conexão com NATS
+	IsLeader    bool       // indica se este servidor é o líder
+}
+
+type ExchangeMatchmaking struct {
+	LocalQueue  []shared.ExchangeRequest
+	GlobalQueue []shared.ExchangeRequest
+	Mutex       sync.Mutex
 }

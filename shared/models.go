@@ -87,3 +87,10 @@ type CardDrawnData struct {
 type Cards struct {
 	Cards []Card `json:"cards"`
 }
+
+type ExchangeRequest struct {
+	Player      User      `json:"user"`
+	ServerID    int       `json:"server_id"`
+	CardOffered Card      `json:"card_offered"`
+	Timestamp   time.Time `json:"timestamp"`
+}

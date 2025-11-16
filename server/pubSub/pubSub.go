@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"pbl/server/exchange"
 	"pbl/server/handlers"
 	"pbl/server/models"
 	"pbl/shared"
@@ -74,7 +75,10 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 			handlers.HandleChangeDeck(server, req, nc, msg)
 		case "SEE_DECK":
 			handlers.HandleSeeDeck(server, req, nc, msg)
+		case "EXCHANGE_REQUEST":
+    		exchange.JoinExchangeQueue(server, req, nc, msg)
 		}
+
 
 	})
 	if err != nil {

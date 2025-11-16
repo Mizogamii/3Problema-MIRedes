@@ -40,13 +40,12 @@ func ShowMenuPrincipal() string {
 	fmt.Println("3 - Abrir pacote")
 	fmt.Println("4 - Trocar cartas")
 	fmt.Println("5 - Visualizar regras")
-	fmt.Println("6 - Visualizar ping") 
-	fmt.Println("7 - Deslogar")
+	fmt.Println("6 - Deslogar")
 	fmt.Print("Insira a opção desejada: ")
 	return ReadLineSafe()
 }
 
-func ShowRules() {
+func ShowGameRules() {
 	fmt.Println("\n----------------------------------")
 	fmt.Println("              Regras              ")
 	fmt.Println("----------------------------------")
@@ -75,7 +74,7 @@ func ShowRules() {
 
 }
 
-func ShowMenuCards()string{
+func ShowMenuCards() string {
 	fmt.Println("\n----------------------------------")
 	fmt.Println("            Menu Cartas             ")
 	fmt.Println("----------------------------------")
@@ -86,44 +85,69 @@ func ShowMenuCards()string{
 	return ReadLineSafe()
 }
 
-
-func PrintCartaCor(carta shared.Card){
+func PrintCartaCor(carta shared.Card) {
 	cardString := fmt.Sprintf("%s %s", carta.Element, carta.Type)
 	switch carta.Element {
-		case "AR":
-			style.PrintCian(cardString)
-		case "AGUA":
-			style.PrintAz(cardString)
-		case "FOGO":
-			style.PrintVerm(cardString)
-		case "TERRA":
-			style.PrintAma(cardString)
-		case "MATO":
-			style.PrintVerd(cardString)
-		}
+	case "AR":
+		style.PrintCian(cardString)
+	case "AGUA":
+		style.PrintAz(cardString)
+	case "FOGO":
+		style.PrintVerm(cardString)
+	case "TERRA":
+		style.PrintAma(cardString)
+	case "MATO":
+		style.PrintVerd(cardString)
+	}
 }
 
-
-func MostrarInventario(cartas []shared.Card){
+func MostrarInventario(cartas []shared.Card) {
 	fmt.Println("\n----------------------------------")
 	fmt.Println("             Suas Cartas             ")
 	fmt.Println("----------------------------------")
-	for i,carta := range cartas{
+	for i, carta := range cartas {
 		fmt.Printf("[%d] - ", i)
 		PrintCartaCor(carta)
 		fmt.Print("\n")
 	}
 }
 
-//Printar as cartas do deck do usuário
+// Printar as cartas do deck do usuário
 func ListCardsDeck(user *shared.User) {
 	fmt.Println("\n----------------------------------")
 	fmt.Println("             Seu deck             ")
 	fmt.Println("----------------------------------")
-	for i,carta := range user.Deck{
+	for i, carta := range user.Deck {
 		fmt.Printf("[%d] - ", i+1)
 		PrintCartaCor(carta)
 		fmt.Print("\n")
 	}
 	fmt.Println("----------------------------------")
+}
+
+// Regras da troca
+func ShowExchangeRules() {
+	fmt.Println("\n----------------------------------")
+	fmt.Println("     Regras de Troca de Cartas    ")
+	fmt.Println("----------------------------------")
+	fmt.Println("Há dois tipos de filas de troca:")
+	fmt.Println("\n1) Fila Local")
+	fmt.Println("Permite trocar cartas com jogadores\nconectados ao mesmo servidor.")
+	fmt.Println("\n2) Fila Global")
+	fmt.Println("Permite trocar cartas com jogadores\nde outros servidores da rede.")
+	fmt.Println("\nComo você entra nessas filas?")
+	fmt.Println("A seleção é automática! Você entra\nna fila local primeiro,")
+	fmt.Println("e caso não apareça ninguém, você é\nenviado para a fila global.")
+	fmt.Println("\nBoa sorte nas suas trocas!")
+	fmt.Println("----------------------------------")
+}
+
+func ShowRules() string {
+	fmt.Println("\n----------------------------------")
+	fmt.Println("              Regras              ")
+	fmt.Println("----------------------------------")
+	fmt.Println("1 - Regras do jogo")
+	fmt.Println("2 - Regras da troca de cartas")
+	return ReadLineSafe()
+
 }
