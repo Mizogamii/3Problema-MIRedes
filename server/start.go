@@ -21,18 +21,29 @@ import (
 
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 func StartServer(idString, port, peersEnv, natsURL string) error {
+	// Conectar ao Ganache local
+	ethClient, err := ethclient.Dial("http://127.0.0.1:8545")
+	if err != nil {
+    	log.Fatalf("Erro ao conectar ao Ganache: %v", err)
+	}
+	log.Println("Conectado ao Ganache com sucesso!")
+	
+	
 	style.Clear()
 	id, _ := strconv.Atoi(idString)
 	if port == "" {
 		port = "8001"
 	}
-
+	
 	peerInfos := parsePeers(peersEnv)
 	server := models.NewServer(id, port, peerInfos)
-
+	
+	server.Blockchain = ethClient
+	
 	// Configuração Raft
 	config := raft.DefaultConfig()
 	config.HeartbeatTimeout = 2000 * time.Millisecond
