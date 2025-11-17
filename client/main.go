@@ -1,20 +1,21 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"log"
 	"os"
-	"os/signal"
-	"strconv"
-	"syscall"
+	"log"
+	"fmt"
 	"time"
+	"syscall"
+	"strconv"
+	"os/signal"
+	"encoding/json"
 
-	"pbl/client/game"
-	"pbl/client/models"
-	"pbl/client/utils"
-	"pbl/shared"
 	"pbl/style"
+	"pbl/shared"
+	"pbl/client/game"
+	"pbl/client/utils"
+	"pbl/client/models"
+	"pbl/client/exchange"
 
 	"github.com/nats-io/nats.go"
 )
@@ -128,6 +129,7 @@ func sendLoginRequest(nc *nats.Conn, server models.ServerInfo, clientID string) 
 }
 
 func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, user shared.User) {
+
 	serverTopic := fmt.Sprintf("server.%d.requests", server.ID)
 	startHeartbeat(nc, clientID, serverTopic) 
 	startPingLoop(nc, clientID, serverTopic) 
@@ -182,7 +184,7 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 			handleClientDrawCard(nc, server, clientID)
 		case "4":
 			style.Clear()
-			handleExchange(nc, server, &user)
+			exchange.HandleExchange(nc, server, &user)
 		case "5":
 			style.Clear()
 			menuRules()
@@ -224,7 +226,7 @@ func menuCard(nc *nats.Conn, server models.ServerInfo, clientID string, user *sh
 		switch option{
 		case "1":
 			style.Clear()
-			handleClientSeeCards(nc, server, clientID)
+			utils.HandleClientSeeCards(nc, server, clientID)
 		case "2":
 			style.Clear()
 			handleChangeDeck(nc, server, clientID, user)
@@ -310,52 +312,8 @@ func handleClientDrawCard(nc *nats.Conn, server models.ServerInfo, clienteID str
 	}
 }
 
-func handleClientSeeCards(nc *nats.Conn, server models.ServerInfo, clientID string)[]shared.Card{
-	fmt.Println("Buscando cartas...")
-	req := shared.Request{
-		ClientID: clientID,
-		Action: "SEE_CARDS",
-		Payload: nil,
-	}
-	reqData,_ := json.Marshal(req)
-
-	topic := fmt.Sprintf("server.%d.requests", server.ID)
-	msg, err := nc.Request(topic, reqData, 5*time.Second)
-
-	if err != nil {
-		log.Printf("Erro na requisição para pegar carta: %v", err)
-		return nil// Sai da função imediatamente para evitar o crash
-	}
-
-	if msg == nil || msg.Data == nil{
-		log.Printf("O servidor retornou uma resposta vazia.")
-		return nil
-	}
-
-	var response shared.Response
-	if err := json.Unmarshal(msg.Data, &response); err != nil {
-		log.Printf("Erro ao decodificar resposta do inventário: %v", err)
-		return nil
-	}
-
-	if response.Status == "success"{
-		var inventario shared.Cards
-		if err := json.Unmarshal(response.Data, &inventario); err != nil {
-			log.Printf("Erro ao decodificar os dados do inventario: %v", err)
-			return nil
-		}
-		utils.MostrarInventario(inventario.Cards)
-		return inventario.Cards
-	} else {
-		msg := fmt.Sprintf("\n[FALHA] Não foi possível ver inventário: %s\n", response.Error)
-		style.PrintVerm(msg)
-	}
-
-	return nil
-}
-
 func handleChangeDeck(nc *nats.Conn, server models.ServerInfo, clientID string, user *shared.User){
-	cards := handleClientSeeCards(nc, server, clientID)
+	cards := utils.HandleClientSeeCards(nc, server, clientID)
 	deck := choseDeck(cards)
 	utils.MostrarInventario(deck)
 
@@ -519,51 +477,4 @@ func startPingLoop(nc *nats.Conn, clientID string, serverTopic string) {
 			time.Sleep(5 * time.Second) // envia PING a cada 5s
 		}
 	}()
-}
-
-//Troca de cartas
-
-func handleExchange(nc *nats.Conn, server models.ServerInfo, user *shared.User){
-	cards := handleClientSeeCards(nc, server, user.UserId)
-	exchangeCardIndex := utils.Troca()
-	if exchangeCardIndex < 0 || exchangeCardIndex >= len(cards){
-		fmt.Println("Carta não existe!")
-		return
-	}
-
-	requestExchange := shared.ExchangeRequest{
-		Player: *user,
-		CardOffered: cards[exchangeCardIndex],
-		ServerID: server.ID,
-		Timestamp: time.Now(),
-	}
-	data, _ := json.Marshal(requestExchange)
-
-	request := shared.Request{
-		ClientID: user.UserId,
-		Action: "EXCHANGE_REQUEST",
-		Payload: data,
-	}
-
-	send, _ := json.Marshal(request)
-
-	topic := fmt.Sprintf("server.%d.requests", server.ID)
-
-	msg, err := nc.Request(topic,send, 5*time.Second)
-	if err != nil{
-		fmt.Println("Erro ao enviar o pedido de troca: ", err)
-		return
-	}
-
-	var response shared.Response
-	if err := json.Unmarshal(msg.Data, &response); err != nil{
-		fmt.Println("Erro ao decodificar resposta: ", err)
-		return
-	}
-
-	if response.Status == "success"{
-		fmt.Println("Você entrou na fila de troca")
-	}else{
-		fmt.Println("ERRO: ",response.Error)
-	}
 }

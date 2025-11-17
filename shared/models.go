@@ -94,3 +94,17 @@ type ExchangeRequest struct {
 	CardOffered Card      `json:"card_offered"`
 	Timestamp   time.Time `json:"timestamp"`
 }
+
+type ExchangeSession struct {
+	ID string `json:"id"`
+    Player1 User
+    Player2 User
+    Card1   Card
+    Card2   Card
+}
+type ExchangeNotification struct {
+    SessionID string
+    YouSend   Card
+    YouGet    Card
+    Partner   string
+}

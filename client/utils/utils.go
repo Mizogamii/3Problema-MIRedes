@@ -1,18 +1,24 @@
 package utils
 
 import (
+	"os"
+	"log"
+	"fmt"
+	"math"
+	"time"
 	"bufio"
+	"runtime"
+	"strings"
+	"os/exec"
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
-	"math"
-	"os"
-	"os/exec"
-	"runtime"
-	"strings"
-	//"time"
-	//"pbl/shared"
+	
+	"pbl/style"
+	"pbl/shared"
+	"pbl/client/models"
+
+	"github.com/nats-io/nats.go"
 )
 
 func ReadLineSafe() string {
@@ -75,4 +81,48 @@ func GenerateRoomID(serverID int) string {
 func MustMarshal(v interface{}) json.RawMessage {
 	b, _ := json.Marshal(v)
 	return json.RawMessage(b)
+}
+
+func HandleClientSeeCards(nc *nats.Conn, server models.ServerInfo, clientID string)[]shared.Card{
+	fmt.Println("Buscando cartas...")
+	req := shared.Request{
+		ClientID: clientID,
+		Action: "SEE_CARDS",
+		Payload: nil,
+	}
+	reqData,_ := json.Marshal(req)
+
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+
+	if err != nil {
+		log.Printf("Erro na requisição para pegar carta: %v", err)
+		return nil// Sai da função imediatamente para evitar o crash
+	}
+
+	if msg == nil || msg.Data == nil{
+		log.Printf("O servidor retornou uma resposta vazia.")
+		return nil
+	}
+
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		log.Printf("Erro ao decodificar resposta do inventário: %v", err)
+		return nil
+	}
+
+	if response.Status == "success"{
+		var inventario shared.Cards
+		if err := json.Unmarshal(response.Data, &inventario); err != nil {
+			log.Printf("Erro ao decodificar os dados do inventario: %v", err)
+			return nil
+		}
+		MostrarInventario(inventario.Cards)
+		return inventario.Cards
+	} else {
+		msg := fmt.Sprintf("\n[FALHA] Não foi possível ver inventário: %s\n", response.Error)
+		style.PrintVerm(msg)
+	}
+
+	return nil
 }

@@ -55,3 +55,4 @@ type ExchangeMatchmaking struct {
 	GlobalQueue []shared.ExchangeRequest
 	Mutex       sync.Mutex
 }
+
