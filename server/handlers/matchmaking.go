@@ -54,7 +54,7 @@ func HandleJoinQueue(server *models.Server, request shared.Request, nc *nats.Con
 	nc.Publish(msg.Reply, data)
 }
 
-// Monitora a fila local e move jogadores para a fila global se passarem de 10s
+// Monitora a fila local e move jogadores para a fila global se passarem de 5s
 func MonitorLocalQueue(server *models.Server, nc *nats.Conn) {
 	ticker := time.NewTicker(1 * time.Second)
 
@@ -68,7 +68,7 @@ func MonitorLocalQueue(server *models.Server, nc *nats.Conn) {
 			entry := server.Matchmaking.LocalQueue[i]
 			waitTime := now.Sub(entry.JoinTime)
 
-			if waitTime > 2*time.Second {
+			if waitTime > 5*time.Second {
 				SendToGlobalQueue(entry, server)
 				server.Matchmaking.LocalQueue = append(
 					server.Matchmaking.LocalQueue[:i],
@@ -185,7 +185,7 @@ func LeaderJoinGlobalQueueHandler(server *models.Server) http.HandlerFunc {
         w.WriteHeader(http.StatusOK)
         w.Write([]byte("Cliente adicionado à fila global"))
         
-        // ✅ Tentar criar partidas e notificar
+        // Tentar criar partidas e notificar
         go func() {
             time.Sleep(50 * time.Millisecond)
             createdRooms := server.FSM.TryMatchPlayers()
@@ -210,7 +210,7 @@ func SendToGlobalQueue(entry shared.QueueEntry, server *models.Server) {
             return
         }
         
-        // ✅ Tentar criar partidas e notificar
+        // Tentar criar partidas e notificar
         go func() {
             time.Sleep(50 * time.Millisecond)
             createdRooms := server.FSM.TryMatchPlayers()

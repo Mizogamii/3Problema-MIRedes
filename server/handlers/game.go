@@ -15,6 +15,106 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+func HandleGameMessage(server *models.Server, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
+    var gameMsg shared.GameMessage
+    if err := json.Unmarshal(request.Payload, &gameMsg); err != nil {
+        log.Println("Erro ao decodificar GameMessage:", err)
+        return
+    }
+
+    //Pega a sala do jogador
+    roomID := gameMsg.RoomID
+    game.GameRoomsMu.Lock()
+    room, exists := game.GameRooms[roomID]
+    game.GameRoomsMu.Unlock()
+    if !exists {
+        log.Println("Sala não encontrada:", roomID)
+        return
+    }
+
+    //Inicializa mapa de cartas
+    if room.PlayersCards == nil {
+        room.PlayersCards = make(map[string]shared.Card)
+    }
+
+    //Decodifica a carta jogada
+    var card shared.Card
+    if err := json.Unmarshal(gameMsg.Data, &card); err != nil {
+        log.Println("Erro ao decodificar carta:", err)
+        return
+    }
+    room.PlayersCards[gameMsg.From] = card
+
+    //Determina quem será o próximo
+    var nextTurn string
+    if gameMsg.From == room.Player1.UserId {
+        nextTurn = room.Player2.UserId
+    } else {
+        nextTurn = room.Player1.UserId
+    }
+    room.Turn = nextTurn
+
+    //Envia mensagem para ambos os jogadores
+    turnMsg := shared.GameMessage{
+        Type: "PLAY_CARD",
+        From: gameMsg.From,  
+        Data: gameMsg.Data,  
+        Turn: nextTurn,      
+    }
+    dataTurn, _ := json.Marshal(turnMsg)
+
+    opponentID := room.Player1.UserId
+    if gameMsg.From == room.Player1.UserId{
+        opponentID = room.Player2.UserId
+    }
+
+    nc.Publish(fmt.Sprintf("client.%s.inbox", opponentID), dataTurn)
+
+    //Se ambos jogaram, calcula resultado
+    if len(room.PlayersCards) == 2 {
+        cardP1 := room.PlayersCards[room.Player1.UserId]
+        cardP2 := room.PlayersCards[room.Player2.UserId]
+  
+        resultP1 := game.CheckWinner(cardP1, cardP2)
+        NotifyResult(nc, room, resultP1)
+
+        // Limpa cartas para a próxima rodada
+        room.PlayersCards = make(map[string]shared.Card)
+        return
+    }
+}
+
+var ActiveGames = make(map[string]*shared.GameRoom)
+
+// Handler para iniciar partidas
+func StartGameHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var room shared.GameRoom
+	if err := json.NewDecoder(r.Body).Decode(&room); err != nil {
+		log.Printf("[StartGameHandler] Erro ao decodificar GameRoom: %v", err)
+		http.Error(w, "Erro ao decodificar JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Salva a partida ativa no servidor
+	ActiveGames[room.ID] = &room
+	log.Printf("[StartGameHandler] Nova partida recebida: %s (%s vs %s). Turno: %s",
+		room.ID, room.Player1.UserName, room.Player2.UserName, room.Turn)
+
+	// Responde para confirmar que recebeu
+	w.Header().Set("Content-Type", "application/json")
+	resp := map[string]string{
+		"status":  "success",
+		"message": "Partida iniciada no host",
+		"roomID":  room.ID,
+	}
+	json.NewEncoder(w).Encode(resp)
+}
+
 
 func getPeerURLByID(server *models.Server, targetID int) (string, error) {
 	// A lista server.Peers contém os IPs/URLs
@@ -114,7 +214,6 @@ func processClientCard(server *models.Server, room *shared.GameRoom, gameMsg sha
 
 // HOST armazena carta e calcula resultado
 func processHostCard(server *models.Server, room *shared.GameRoom, gameMsg shared.GameMessage, nc *nats.Conn) {
-	// ... (código igual) ...
 	if room.PlayersCards == nil {
 		room.PlayersCards = make(map[string]shared.Card)
 	}
@@ -299,4 +398,42 @@ func notifyPlayerResult(server *models.Server, nc *nats.Conn, room *shared.GameR
 		nc.Publish(topic, data)
 		log.Printf("[HOST] Resultado enviado ao cliente local %s", playerID)
 	}
+}
+
+func NotifyResult(nc *nats.Conn, room *shared.GameRoom, resultP1 string) {
+	var resultP2 string
+	switch resultP1 {
+	case "GANHOU":
+		resultP2 = "PERDEU"
+		room.Winner = room.Player1
+	case "PERDEU":
+		resultP2 = "GANHOU"
+		room.Winner = room.Player2
+	case "EMPATE":
+		resultP2 = "EMPATE"
+		room.Winner = nil
+	}
+
+	// Notifica Player1
+	msgP1 := shared.GameMessage{
+		Type:   "ROUND_RESULT",
+		From:   "SERVER",
+		Result: resultP1,
+		Winner: room.Winner,
+	}
+	dataP1, _ := json.Marshal(msgP1)
+	nc.Publish(fmt.Sprintf("client.%s.inbox", room.Player1.UserId), dataP1)
+
+	// Notifica Player2
+	msgP2 := shared.GameMessage{
+		Type:   "ROUND_RESULT",
+		From:   "SERVER",
+		Result: resultP2,
+		Winner: room.Winner,
+	}
+	dataP2, _ := json.Marshal(msgP2)
+	nc.Publish(fmt.Sprintf("client.%s.inbox", room.Player2.UserId), dataP2)
+
+	//Limpa cartas da rodada
+	room.PlayersCards = make(map[string]shared.Card)
 }
