@@ -54,5 +54,6 @@ type ExchangeMatchmaking struct {
 	LocalQueue  []shared.ExchangeRequest
 	GlobalQueue []shared.ExchangeRequest
 	Mutex       sync.Mutex
+	IsLeader    bool
 }
 

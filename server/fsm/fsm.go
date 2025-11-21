@@ -1,14 +1,14 @@
 package fsm
 
 import (
+	"io"
+	"fmt"
+	"log"
+	"time"
+	"sync"
+	"math/big"
 	"crypto/rand"
 	"encoding/json"
-	"fmt"
-	"io"
-	"log"
-	"math/big"
-	"sync"
-	"time"
 
 	"pbl/server/cards"
 
@@ -25,7 +25,7 @@ type FSM struct {
 	cardStock    []shared.Card
 	pendingCards map[string]shared.Card
 
-	//Para a parte global
+	//Para a parte global --> partidas
 	GlobalQueue []shared.QueueEntry
 	GlobalQueueMu sync.Mutex
 
@@ -33,6 +33,11 @@ type FSM struct {
 	GlobalRoomsMu sync.RWMutex
 
 	matchmakingMu sync.Mutex 
+
+	GlobalExchangeQueue []shared.ExchangeQueueEntry
+	GlobalExchangeQueueMu sync.Mutex
+
+	exchangeMu sync.Mutex
 
 	//CreatedRooms chan *shared.GameRoom
 	Raft *raft.Raft
@@ -44,7 +49,7 @@ func NewFSM() *FSM {
 		cardStock:    cards.GerarEstoque(),
 		pendingCards: make(map[string]shared.Card),
 		GlobalRooms:  make(map[string]*shared.GameRoom),
-		//CreatedRooms: make(chan *shared.GameRoom, 10),
+		
 	}
 }
 
@@ -149,6 +154,42 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 		}
 		fsm.GlobalQueueMu.Unlock()
 		return nil
+
+		case sharedRaft.CommandQueueJoinGlobalExchange:
+		var entry shared.ExchangeQueueEntry
+		if err := json.Unmarshal(cmd.Data, &entry); err != nil {
+			log.Printf("[FSM] Erro ao decodificar QUEUE_JOIN_GLOBAL_EXCHANGE: %v", err)
+			return err
+		}
+
+		exists := false
+		fsm.GlobalExchangeQueueMu.Lock()
+		for _, e := range fsm.GlobalExchangeQueue {
+			if e.Player.UserId == entry.Player.UserId {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			fsm.GlobalExchangeQueue = append(fsm.GlobalExchangeQueue, entry)
+			log.Printf("[FSM] Usuário %s adicionado à fila de trocas global (carta: %s)",
+				entry.Player.UserName, entry.Card.Element)
+		}
+		fsm.GlobalExchangeQueueMu.Unlock()
+		return nil
+
+	case sharedRaft.CommandCreateExchangeSession:
+		var session shared.ExchangeSession
+		if err := json.Unmarshal(cmd.Data, &session); err != nil {
+			log.Printf("[FSM] Erro ao criar sessão de troca: %v", err)
+			return err
+		}
+
+		log.Printf("[FSM] Sessão de troca replicada: %s (server%d <-> server%d)",
+			session.ID, session.Server1ID, session.Server2ID)
+
+		return &session
+
 	default:
 		return fmt.Errorf("unrecognized command type: %s", cmd.Type)
 	}
@@ -263,7 +304,7 @@ func (fsm *FSM) TryMatchPlayers() []*shared.GameRoom {
 
         future := fsm.Raft.Apply(cmdBytes, 5*time.Second)
         if err := future.Error(); err != nil {
-            log.Printf("[FSM] ❌ Erro ao criar sala: %v", err)
+            log.Printf("[FSM] Erro ao criar sala: %v", err)
             
             // Recolocar na fila
             fsm.GlobalQueueMu.Lock()
@@ -276,18 +317,89 @@ func (fsm *FSM) TryMatchPlayers() []*shared.GameRoom {
             break
         }
 
-        log.Printf("[FSM] ✅ Sala aplicada no Raft: %s", room.ID)
+        log.Printf("[FSM] Sala aplicada no Raft: %s", room.ID)
         
         // Aguardar replicação
         time.Sleep(200 * time.Millisecond)
         
         log.Printf("[FSM] Sala global criada: %s (Host: server%d)", room.ID, room.ServerID)
         
-        // ✅ Adicionar à lista de salas criadas
+        // Adicionar à lista de salas criadas
         createdRooms = append(createdRooms, &room)
     }
     
     return createdRooms
+}
+
+func (fsm *FSM) TryMatchExchangeGlobal() []*shared.ExchangeSession {
+	if !fsm.exchangeMu.TryLock() {
+		log.Println("[FSM] Exchange matchmaking já em andamento, ignorando")
+		return nil
+	}
+	defer fsm.exchangeMu.Unlock()
+
+	// só o líder faz o emparelhamento
+	if fsm.Raft == nil || fsm.Raft.State() != raft.Leader {
+		return nil
+	}
+
+	var sessions []*shared.ExchangeSession
+
+	for {
+		fsm.GlobalExchangeQueueMu.Lock()
+		if len(fsm.GlobalExchangeQueue) < 2 {
+			fsm.GlobalExchangeQueueMu.Unlock()
+			break
+		}
+
+		entry1 := fsm.GlobalExchangeQueue[0]
+		entry2 := fsm.GlobalExchangeQueue[1]
+		fsm.GlobalExchangeQueue = fsm.GlobalExchangeQueue[2:]
+		fsm.GlobalExchangeQueueMu.Unlock()
+
+		session := shared.ExchangeSession{
+			ID:        fmt.Sprintf("exchange-%s-%s", entry1.Player.UserName, entry2.Player.UserName),
+			Player1:   &entry1.Player, 
+			Player2:   &entry2.Player,
+			Card1:     entry1.Card,
+			Card2:     entry2.Card,
+			Server1ID: entry1.Player.ServerID,
+			Server2ID: entry2.Player.ServerID,
+		
+		}
+
+		log.Printf("[FSM] Tentando criar sessão de troca: %s (%s[%s] <-> %s[%s])",
+			session.ID,
+			entry1.Player.UserName, entry1.Card.Element,
+			entry2.Player.UserName, entry2.Card.Element)
+
+		cmd := sharedRaft.Command{
+			Type: sharedRaft.CommandCreateExchangeSession,
+			Data: mustMarshal(session),
+		}
+		cmdBytes := mustMarshal(cmd)
+
+		future := fsm.Raft.Apply(cmdBytes, 5*time.Second)
+		if err := future.Error(); err != nil {
+			log.Printf("[FSM] Erro ao criar sessão de troca: %v", err)
+
+			// recoloca na fila para não perder
+			fsm.GlobalExchangeQueueMu.Lock()
+			fsm.GlobalExchangeQueue = append([]shared.ExchangeQueueEntry{entry1, entry2}, fsm.GlobalExchangeQueue...)
+			fsm.GlobalExchangeQueueMu.Unlock()
+
+			break
+		}
+
+		log.Printf("[FSM] Sessão de troca aplicada no Raft: %s", session.ID)
+
+		// Aguarda replicação
+		time.Sleep(150 * time.Millisecond)
+
+		sessions = append(sessions, &session)
+	}
+
+	return sessions
 }
 
 func chooseRandomPlayer(a, b string) string {

@@ -9,7 +9,9 @@ const(
 	CommandQueueJoinGlobal  = "QUEUE_JOIN_GLOBAL"
 	CommandQueueLeave = "QUEUE_LEAVE"
 	CommandCreateRoom = "CREATE_ROOM"
-	CommandRemoveRoom   = "REMOVE_ROOM"
+	CommandQueueJoinGlobalExchange = "QUEUE_JOIN_GLOBAL_EXCHANGE"
+	CommandCreateExchangeSession = "CREATE_EXCHANGE_SESSION"
+
 )
 
 // command representa uma ação a ser aplicada na maquina de estados

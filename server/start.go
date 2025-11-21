@@ -1,7 +1,6 @@
 package main
 
 import (
-	//"bytes"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -116,6 +115,9 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 	//log.Printf("[Servidor %d] Monitor de matchmaking local iniciado.", server.ID)
 	handlers.StartHeartbeatMonitor(server, nc)
 
+	log.Printf("[Servidor %d] Iniciando monitor de fila de TROCAS...", server.ID)
+	go handlers.MonitorExchangeLocalQueue(server, nc)
+
 	// Ticker para o líder tentar criar partidas a cada 500ms
 	 go func() {
         ticker := time.NewTicker(500 * time.Millisecond)
@@ -150,6 +152,8 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 	http.HandleFunc("/forward-card", handlers.HandleForwardCard(server, nc))
 	http.HandleFunc("/forward-result", handlers.HandleForwardCard(server, nc))
 	http.HandleFunc("/forward-to-host", handlers.HandleForwardToHost(server, nc))
+	http.HandleFunc("/exchange/join-global", handlers.HandleJoinGlobalExchange(server))
+	http.HandleFunc("/exchange/execute-swap", handlers.HandleExecuteSwap(server, nc))
 
 	log.Printf("[Servidor %d] HTTP iniciado na porta %s, pronto para Raft e NATS", server.ID, server.Port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {

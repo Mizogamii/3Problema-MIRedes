@@ -7,7 +7,6 @@ import (
 	"os"
 	"time"
 
-	"pbl/server/exchange"
 	"pbl/server/handlers"
 	"pbl/server/models"
 	"pbl/shared"
@@ -65,9 +64,6 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 		case "PING":
     		handlers.HandlePing(server, req, nc, msg)
 
-		/*case "GLOBAL_MATCH_CREATED":
-			log.Println("entrou no GLOBAL_MATCH_CREATED")*/
-
 		case "GAME_MESSAGE_GLOBAL":
     		handlers.HandleGlobalGameMessage(server, req, nc, msg)
 			handlers.HandleSeeCards(server, req, nc, msg)
@@ -76,7 +72,7 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 		case "SEE_DECK":
 			handlers.HandleSeeDeck(server, req, nc, msg)
 		case "EXCHANGE_REQUEST":
-    		exchange.JoinExchangeQueue(server, req, nc, msg)
+    		handlers.JoinExchangeQueue(server, req, nc, msg)
 		}
 
 

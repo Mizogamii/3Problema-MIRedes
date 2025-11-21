@@ -97,14 +97,22 @@ type ExchangeRequest struct {
 
 type ExchangeSession struct {
 	ID string `json:"id"`
-    Player1 User
-    Player2 User
-    Card1   Card
-    Card2   Card
+    Player1 *User `json:"player1"`
+    Player2 *User `json:"player2"`
+    Card1   Card `json:"card1"`
+    Card2   Card `json:"card2"`
+	Server1ID int `json:"server1_id,omitempty"`
+	Server2ID int `json:"server2_id,omitempty"` 
 }
 type ExchangeNotification struct {
     SessionID string
     YouSend   Card
     YouGet    Card
     Partner   string
+}
+
+type ExchangeQueueEntry struct {
+	Player    User      `json:"user"`
+	Card      Card      `json:"card"`       
+	Timestamp time.Time `json:"timestamp"`
 }
