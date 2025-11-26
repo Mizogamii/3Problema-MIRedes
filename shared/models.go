@@ -24,6 +24,8 @@ type User struct {
 	Deck     []Card `json:"deck"`
 	Status   string `json:"status"`
 	ServerID int    `json:"server_id"`
+	Address string `json:"address"`
+	PrivateKey string `json:"privateKey"`
 }
 
 type Card struct {

@@ -1,11 +1,11 @@
 package models
 
 import (
+	"pbl/server/blockchain"
 	"pbl/server/fsm"
 	"pbl/shared"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hashicorp/raft"
 	"github.com/nats-io/nats.go"
 )
@@ -20,9 +20,9 @@ type Server struct {
 	Mu          sync.Mutex
 	Matchmaking Matchmaking
 	FSM         *fsm.FSM
-	Blockchain  *ethclient.Client
 
 	Exchange ExchangeMatchmaking
+	Blockchain *blockchain.EthereumService
 }
 
 type Message struct {

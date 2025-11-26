@@ -1,7 +1,7 @@
 package models
 
 import (
-    "pbl/shared"
+	"pbl/shared"
 )
 
 func NewServer(id int, port string, peers []PeerInfo) *Server {

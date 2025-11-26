@@ -10,42 +10,64 @@ NATS_PORT_2 := 4224
 NATS_PORT_3 := 4225
 # ========================================================
 
+# EDITE AQUI AS CAHVES DAS CONTAS 0, 1 e 2 DO GANACHE (tirar os 0x no inicio da chave)
+KEY_SERVER_1 := "SUA_CHAVE_GANACHE0"
+KEY_SERVER_2 := "SUA_CHAVE_GANACHE1"
+KEY_SERVER_3 := "SUA_CHAVE_GANACHE2"
+
+# Endereços dos Contratos (Resultado do make deploy)
+CONTRACT_ADDR_REGISTRO := "ENDEREÇO_CONTRATO_REGISTRO" 
+CONTRACT_ADDR_HISTORICO := "ENDEREÇO_CONTRATO_HISTORICO"
+# ========================================================
+
 .PHONY: run-pair1 run-pair2 run-pair3 run-client stop-all-nats server1 server2 server3 stop-prod-nats client build clean help
 
 # ==================== DESENVOLVIMENTO LOCAL (Localhost) ====================
-# (Esta seção permanece como a sua, está perfeita)
+
+deploy-contract:
+	@echo "Rodando script de deploy..."
+	@go run ./deploy/deploy.go
 
 run-pair1:
-	@echo "Iniciando NATS 1 (Local) na porta 4223..."
+	@echo "Iniciando NATS 1..."
 	@docker run -d --rm --name nats1 -p 4223:4222 -p 8223:8222 nats:latest
-	@echo "Iniciando Servidor 1 (Local)..."
+	@echo "Iniciando Servidor 1..."
 	@ID=1 \
 	PORT=8001 \
 	PEERS="2=http://localhost:8002,3=http://localhost:8003" \
 	NATS_URL="nats://localhost:4223" \
 	RAFT_ADVERTISE_ADDR="localhost:8001" \
+	BLOCKCHAIN_CONTRACT_ADDR_REGISTRO=$(CONTRACT_ADDR_REGISTRO) \
+	BLOCKCHAIN_CONTRACT_ADDR_HISTORICO=$(CONTRACT_ADDR_HISTORICO) \
+	BLOCKCHAIN_PRIVATE_KEY=$(KEY_SERVER_1) \
 	go run ./server/
 
 run-pair2:
-	@echo "Iniciando NATS 2 (Local) na porta 4224..."
+	@echo "Iniciando NATS 2..."
 	@docker run -d --rm --name nats2 -p 4224:4222 -p 8224:8222 nats:latest
-	@echo "Iniciando Servidor 2 (Local)..."
+	@echo "Iniciando Servidor 2..."
 	@ID=2 \
 	PORT=8002 \
 	PEERS="1=http://localhost:8001,3=http://localhost:8003" \
 	NATS_URL="nats://localhost:4224" \
 	RAFT_ADVERTISE_ADDR="localhost:8002" \
+	BLOCKCHAIN_CONTRACT_ADDR_REGISTRO=$(CONTRACT_ADDR_REGISTRO) \
+	BLOCKCHAIN_CONTRACT_ADDR_HISTORICO=$(CONTRACT_ADDR_HISTORICO) \
+	BLOCKCHAIN_PRIVATE_KEY=$(KEY_SERVER_2) \
 	go run ./server/
 
 run-pair3:
-	@echo "Iniciando NATS 3 (Local) na porta 4225..."
+	@echo "Iniciando NATS 3..."
 	@docker run -d --rm --name nats3 -p 4225:4222 -p 8225:8222 nats:latest
-	@echo "Iniciando Servidor 3 (Local)..."
+	@echo "Iniciando Servidor 3..."
 	@ID=3 \
 	PORT=8003 \
 	PEERS="1=http://localhost:8001,2=http://localhost:8002" \
 	NATS_URL="nats://localhost:4225" \
 	RAFT_ADVERTISE_ADDR="localhost:8003" \
+	BLOCKCHAIN_CONTRACT_ADDR_REGISTRO=$(CONTRACT_ADDR_REGISTRO) \
+	BLOCKCHAIN_CONTRACT_ADDR_HISTORICO=$(CONTRACT_ADDR_HISTORICO) \
+	BLOCKCHAIN_PRIVATE_KEY=$(KEY_SERVER_3) \
 	go run ./server/
 
 # ==================== PRODUÇÃO (Máquinas Diferentes) ====================

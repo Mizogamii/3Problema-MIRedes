@@ -13,6 +13,7 @@ func main() {
 		os.Getenv("PORT"),
 		os.Getenv("PEERS"),
 		os.Getenv("NATS_URL"),
+		os.Getenv("BLOCKCHAIN_PRIVATE_KEY"),
 	)
 	if err != nil {
 		log.Fatalf("Erro ao iniciar servidor: %v", err)

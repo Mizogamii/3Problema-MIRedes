@@ -1,60 +1,76 @@
 package handlers
 
-import(
-	"log"
-	"fmt"
-	"time"
+import (
 	"bytes"
-	"net/http"
 	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
 
-	sharedRaft "pbl/server/shared"
-	"pbl/shared"
-	"pbl/server/utils"
 	"pbl/server/models"
+	sharedRaft "pbl/server/shared"
+	"pbl/server/utils"
+	"pbl/shared"
+	"pbl/style"
 
-	"github.com/nats-io/nats.go"
 	"github.com/google/uuid"
 	"github.com/hashicorp/raft"
+	"github.com/nats-io/nats.go"
 )
 
 func HandleDrawCard(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
+	userWallet := ""
+	server.Mu.Lock()
+	if user, ok := server.Users[request.ClientID]; ok {
+		userWallet = user.Address
+	}
+	server.Mu.Unlock()
+
 	if server.Raft.State() == raft.Leader {
-		// Se é o líder, processa, salva localmente e responde.
 		result, err := processDrawCardRequest(server, request.ClientID)
 		if err != nil {
 			respondWithError(nc, message, err.Error())
 			return
 		}
+		
+		// Salva no inventário local
 		saveCardToLocalUser(server, request.ClientID, result)
+
+		style.PrintCian("hora de testar a carteira")
+		if userWallet != "" {
+			style.PrintMag("tem carteira(lider)")
+			triggerBlockchainCriarCarta(server, userWallet, result.Id, result.Element, result.Type)
+		} else {
+			log.Printf("[Aviso] Líder processou carta mas user %s não tem wallet local.", request.ClientID)
+		}
+
 		respondWithSuccess(nc, message, result)
 		return
 	}
 
-	// Se não é o líder, descobre quem é e encaminha via HTTP REST.
 	leaderAddr := string(server.Raft.Leader())
 	if leaderAddr == "" {
-		respondWithError(nc, message, "Líder não disponível no momento, tente novamente.")
+		respondWithError(nc, message, "Líder não disponível no momento.")
 		return
 	}
 
-	log.Printf("[%d] Não sou o líder. Endereço do líder retornado pelo Raft: %s", server.ID, leaderAddr)
-	
 	leaderURL := fmt.Sprintf("http://%s/leader/draw-card", leaderAddr)
 
-	// Cria payload para o líder
-	payload := map[string]string{"clientID": request.ClientID}
+	payload := map[string]string{
+		"clientID":      request.ClientID,
+		"player_wallet": userWallet,
+	}
 	jsonPayload, _ := json.Marshal(payload)
 
-	// Faz a requisição HTTP POST para o líder
 	resp, err := http.Post(leaderURL, "application/json", bytes.NewBuffer(jsonPayload))
 	if err != nil {
-		respondWithError(nc, message, fmt.Sprintf("Falha ao se comunicar com o líder: %v", err))
+		respondWithError(nc, message, fmt.Sprintf("Falha ao comunicar com líder: %v", err))
 		return
 	}
 	defer resp.Body.Close()
 
-	// Repassa a resposta do líder para o cliente via NATS
+	// Processa a resposta do líder
 	var leaderResponse shared.Response
 	if err := json.NewDecoder(resp.Body).Decode(&leaderResponse); err != nil {
 		respondWithError(nc, message, "Resposta inválida do líder.")
@@ -64,7 +80,7 @@ func HandleDrawCard(server *models.Server, request shared.Request, nc *nats.Conn
 	if leaderResponse.Status == "success" {
 		var drawnData shared.CardDrawnData
 		if err := json.Unmarshal(leaderResponse.Data, &drawnData); err != nil {
-			respondWithError(nc, message, "Dados da carta inválidos na resposta do líder.")
+			respondWithError(nc, message, "Dados inválidos do líder.")
 			return
 		}
 		saveCardToLocalUser(server, request.ClientID, drawnData.Card)
@@ -84,12 +100,15 @@ func LeaderDrawCardHandler(server *models.Server) http.HandlerFunc {
 
 		var payload map[string]string
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			http.Error(w, "Payload da requisição inválido", http.StatusBadRequest)
+			http.Error(w, "Payload inválido", http.StatusBadRequest)
 			return
 		}
+		
 		clientID := payload["clientID"]
+		playerWallet := payload["player_wallet"]
 
 		result, err := processDrawCardRequest(server, clientID)
+		
 		w.Header().Set("Content-Type", "application/json")
 		if err != nil {
 			response := shared.Response{Status: "error", Error: err.Error(), Server: server.ID}
@@ -97,11 +116,17 @@ func LeaderDrawCardHandler(server *models.Server) http.HandlerFunc {
 			return
 		}
 
-		// O líder também salva a carta se o jogador estiver conectado a ele.
+		style.PrintCian("hora de testar a carteira")
+		if playerWallet != "" {
+			style.PrintMag("tem carteira")
+			triggerBlockchainCriarCarta(server, playerWallet, result.Id, result.Element, result.Type)
+		} else {
+			log.Printf("[Aviso Blockchain] Líder recebeu pedido de %s sem wallet.", clientID)
+		}
+
 		saveCardToLocalUser(server, clientID, result)
 
-		// Prepara a resposta para o servidor que encaminhou
-		responseData := shared.CardDrawnData{Card: result, RequestID: "n/a for forwarded req"}
+		responseData := shared.CardDrawnData{Card: result, RequestID: "forwarded"}
 		responseBytes, _ := json.Marshal(responseData)
 		response := shared.Response{Status: "success", Action: "CARD_DRAWN", Data: responseBytes, Server: server.ID}
 		json.NewEncoder(w).Encode(response)
@@ -247,4 +272,23 @@ func respondWithError(nc *nats.Conn, msg *nats.Msg, errorMsg string) {
 	response := shared.Response{Status: "error", Error: errorMsg}
 	data, _ := json.Marshal(response)
 	nc.Publish(msg.Reply, data)
+}
+
+func triggerBlockchainCriarCarta(server *models.Server, wallet, cardID, element, cardType string) {
+    style.PrintAz("entrou na função")
+	if server.Blockchain == nil {
+		style.PrintVerm("cade a blockchain???")
+        return
+    }
+    
+    go func() {
+		style.PrintAma("tentando blckchain")
+        log.Printf("⛓️ [Blockchain] Iniciando mint para %s...", wallet)
+        txHash, err := server.Blockchain.CriarCarta(wallet, cardID, element, cardType)
+        if err != nil {
+            log.Printf("[Blockchain] Erro: %v", err)
+        } else {
+            log.Printf("[Blockchain] Sucesso! Tx: %s", txHash)
+        }
+    }()
 }

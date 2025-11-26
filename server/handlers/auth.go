@@ -1,14 +1,15 @@
 package handlers
 
-import(
-	"log"
-    "sync"
-	"time"
+import (
 	"encoding/json"
+	"log"
+	"sync"
+	"time"
 
-	"pbl/shared"
-	"pbl/server/utils"
 	"pbl/server/models"
+	"pbl/server/utils"
+	"pbl/shared"
+
 	"github.com/nats-io/nats.go"
 )
 
@@ -88,6 +89,10 @@ func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, m
     }
 
 	user.ServerID = server.ID
+	adderss,key := utils.GenerateNewWallet()
+
+	user.Address = adderss
+	user.PrivateKey = key
     //Armazena o usuário logado
     server.Users[request.ClientID] = user
     log.Printf("[%d] - Usuário '%s' conectado com ClientID '%s'", server.ID, user.UserName, request.ClientID)

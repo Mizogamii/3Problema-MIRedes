@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"pbl/server/blockchain"
 	"pbl/server/fsm"
 	"pbl/server/handlers"
 	"pbl/server/models"
@@ -20,18 +21,9 @@ import (
 
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
-	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-func StartServer(idString, port, peersEnv, natsURL string) error {
-	// Conectar ao Ganache local
-	ethClient, err := ethclient.Dial("http://127.0.0.1:8545")
-	if err != nil {
-    	log.Fatalf("Erro ao conectar ao Ganache: %v", err)
-	}
-	log.Println("Conectado ao Ganache com sucesso!")
-	
-	
+func StartServer(idString, port, peersEnv, natsURL, privateKey string) error {
 	style.Clear()
 	id, _ := strconv.Atoi(idString)
 	if port == "" {
@@ -40,9 +32,15 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 	
 	peerInfos := parsePeers(peersEnv)
 	server := models.NewServer(id, port, peerInfos)
-	
-	server.Blockchain = ethClient
-	
+
+    ethService, err := blockchain.NewEthereumService(privateKey) 
+    if err != nil {
+        log.Printf("⚠️ AVISO: Não foi possível conectar na Blockchain: %v", err)
+    } else {
+        log.Printf("✅ Blockchain conectada com sucesso!")
+        server.Blockchain = ethService
+    }
+
 	// Configuração Raft
 	config := raft.DefaultConfig()
 	config.HeartbeatTimeout = 2000 * time.Millisecond
