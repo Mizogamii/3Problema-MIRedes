@@ -2,7 +2,9 @@ package blockchain
 
 import (
 	"context"
+	"fmt"
 	"math/big"
+	"pbl/style"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -13,7 +15,7 @@ import (
 
 const (
 	RPC_URL          = "http://127.0.0.1:7545"
-	REGISTRO_ADDRESS = "ENDEREÇO_CONTRATO_REGISTRO" //TODO: mover essa contante para variavel do ambiente
+	//REGISTRO_ADDRESS = "ENDEREÇO_CONTRATO_REGISTRO" //TODO: mover essa contante para variavel do ambiente
     CHAIN_ID         = 1337
 )
 
@@ -25,7 +27,7 @@ type EthereumService struct {
 }
 
 // Inicia a conexão
-func NewEthereumService(privateKey string) (*EthereumService, error) {
+func NewEthereumService(privateKey string, registro_add string) (*EthereumService, error) {
 	client, err := ethclient.Dial(RPC_URL)
 	if err != nil {
 		return nil, err
@@ -34,7 +36,9 @@ func NewEthereumService(privateKey string) (*EthereumService, error) {
 	privK, _ := crypto.HexToECDSA(privateKey)
 	auth, _ := bind.NewKeyedTransactorWithChainID(privK, big.NewInt(int64(CHAIN_ID)))
 
-	address := common.HexToAddress(REGISTRO_ADDRESS)
+	m := fmt.Sprintf("endereço do registro %s", registro_add)
+	style.PrintMag(m)
+	address := common.HexToAddress(registro_add)
 	instance, err := NewRegistro(address, client)
 	if err != nil {
 		return nil, err
