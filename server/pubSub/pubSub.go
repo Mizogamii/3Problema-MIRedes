@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
+	//"time"
 
 	"pbl/server/handlers"
 	"pbl/server/models"
@@ -16,9 +16,9 @@ import (
 
 func StartNats(server *models.Server) (*nats.Conn, error) {
 	opts := []nats.Option{
-		nats.RetryOnFailedConnect(true),
-		nats.MaxReconnects(5),
-		nats.ReconnectWait(2 * time.Second),
+		nats.RetryOnFailedConnect(false),
+		nats.MaxReconnects(0),
+		//nats.ReconnectWait(2 * time.Second),
 	}
 
 	nc, err := nats.Connect(os.Getenv("NATS_URL"), opts...)

@@ -1,18 +1,19 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
-	"time"
-	"bytes"
 	"net/http"
-	"encoding/json"
+	"time"
 
-	"pbl/shared"
 	"pbl/server/game"
-	"pbl/server/utils"
 	"pbl/server/models"
 	sharedRaft "pbl/server/shared"
+	"pbl/server/utils"
+	"pbl/shared"
+	"pbl/style"
 
 	"github.com/hashicorp/raft"
 	"github.com/nats-io/nats.go"
@@ -263,6 +264,7 @@ func NotifyServersAboutMatch(room *shared.GameRoom, server *models.Server) {
                 return
             }
             resp.Body.Close()
+			style.PrintMag("NOTIFICAÇÃO ENVIADA!")
             log.Printf("[Notify] Notificação enviada para %s", url)
         }(url)
     }
