@@ -1,13 +1,12 @@
 package utils
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
-	"net/http"
 	"pbl/server/models"
-	"time"
+
+	"log"
 	"pbl/shared"
 )
 
@@ -53,29 +52,6 @@ ifaces, err := net.Interfaces()
 	return "", fmt.Errorf("não foi possível detectar um IP local válido")
 }
 
-//PODE APAGAR ISSO AQUI --> TAVA SENDO USADO NO BULLY
-//Para enciar a mensagem de eleição 
-func SendElectionMessage(peerURL string, message models.ElectionMessage) error {
-	data, err := json.Marshal(message)
-	if err != nil {
-		return fmt.Errorf("erro ao codificar: %w", err)
-	}
-
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Post(peerURL+"/election", "application/json", bytes.NewBuffer(data))
-	if err != nil {
-		return fmt.Errorf("erro ao enviar POST: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("status não OK: %d", resp.StatusCode)
-	}
-
-	return nil
-}
-
 // Helper para converter qualquer struct em json.RawMessage
 func MustMarshal(v interface{}) json.RawMessage {
 	b, _ := json.Marshal(v)
@@ -83,19 +59,42 @@ func MustMarshal(v interface{}) json.RawMessage {
 }
 
 func NotifyClients(room shared.GameRoom, server *models.Server) {
-    // Notifica player 1
-    topic1 := fmt.Sprintf("server.%d.client.%s", room.Server1ID, room.Player1.UserId)
-    msg1 := shared.GameMessage{
-        Type: "GLOBAL_MATCH_CREATED",
-        Data: MustMarshal(room),
+    _, err := json.Marshal(room)
+    if err != nil {
+        log.Printf("[NotifyClients] Erro ao serializar sala: %v", err)
+        return
     }
-    server.Matchmaking.Nc.Publish(topic1, MustMarshal(msg1))
 
-    // Notifica player 2
-    topic2 := fmt.Sprintf("server.%d.client.%s", room.Server2ID, room.Player2.UserId)
-    msg2 := shared.GameMessage{
+    // Cria mensagem no formato esperado pelo listener global
+    gameMsg := shared.GameMessage{
         Type: "GLOBAL_MATCH_CREATED",
         Data: MustMarshal(room),
     }
-    server.Matchmaking.Nc.Publish(topic2, MustMarshal(msg2))
+    msgData := MustMarshal(gameMsg)
+    
+    nc := server.Matchmaking.Nc
+
+    // Notifica Player1 se estiver neste servidor
+    if room.Server1ID == server.ID {
+        topic1 := fmt.Sprintf("server.%d.client.%s", server.ID, room.Player1.UserId)
+        if err := nc.Publish(topic1, msgData); err != nil {
+            log.Printf("[NotifyClients] - Erro ao notificar Player1: %v", err)
+        } else {
+            log.Printf("[Server %d] - Match GLOBAL enviado para %s via %s", 
+                server.ID, room.Player1.UserName, topic1)
+        }
+    }
+
+    // Notifica Player2 se estiver neste servidor
+    if room.Server2ID == server.ID {
+        topic2 := fmt.Sprintf("server.%d.client.%s", server.ID, room.Player2.UserId)
+        if err := nc.Publish(topic2, msgData); err != nil {
+            log.Printf("[NotifyClients] Erro ao notificar Player2: %v", err)
+        } else {
+            log.Printf("[Server %d] - Match GLOBAL enviado para %s via %s", 
+                server.ID, room.Player2.UserName, topic2)
+        }
+    }
+    
+    log.Printf("[NotifyClients] Notificação concluída para sala %s", room.ID)
 }
