@@ -7,6 +7,7 @@ import (
 	"math"
 	"time"
 	"bufio"
+	"strconv"
 	"runtime"
 	"strings"
 	"os/exec"
@@ -84,7 +85,7 @@ func MustMarshal(v interface{}) json.RawMessage {
 }
 
 func HandleClientSeeCards(nc *nats.Conn, server models.ServerInfo, clientID string)[]shared.Card{
-	fmt.Println("Buscando cartas...")
+	//fmt.Println("Buscando cartas...")
 	req := shared.Request{
 		ClientID: clientID,
 		Action: "SEE_CARDS",
@@ -125,4 +126,68 @@ func HandleClientSeeCards(nc *nats.Conn, server models.ServerInfo, clientID stri
 	}
 
 	return nil
+}
+
+func HandleChangeDeckClient(nc *nats.Conn, server models.ServerInfo, clientID string, user *shared.User){
+	cards := HandleClientSeeCards(nc, server, clientID)
+	deck := ChoseDeck(cards)
+	MostrarInventario(deck)
+
+
+	deckCodf, err := json.Marshal(deck)
+	if err!=nil{
+		fmt.Printf("\nErro ao converter para JSON: %v", err)
+		return
+	}
+	req := shared.Request{
+		ClientID: clientID,
+		Action: "CHANGE_DECK",
+		Payload: deckCodf,
+	}
+	reqData, _ := json.Marshal(req)
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+	if err != nil{
+		fmt.Printf("\nErro ao salvar deck: %v", err)
+		return
+
+	}
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		fmt.Printf("\nErro ao decodificar resposta do servidor: %v", err)
+		return
+	}
+	if response.Status == "success"{
+		user.Deck = deck 
+		style.PrintVerd("Deck salvo!")
+	} else {
+		style.PrintVerm("Erro ao salvar deck, tente novamente")
+	}
+}
+
+func ChoseDeck(cards []shared.Card) []shared.Card{
+	var selectedCards []int
+	var deck []shared.Card
+	if cards != nil{
+		for i := range(4){
+			valida := false
+			for ! valida{
+				fmt.Printf("Digite o número da %d° carta para o baralho: ", i+1)
+				in := ReadLineSafe()
+				if inInt, err := strconv.Atoi(in); err == nil {
+					if inInt>=0 && inInt<len(cards) && !Contains(selectedCards, inInt){
+						deck = append(deck, cards[inInt])
+						selectedCards = append(selectedCards, inInt)
+						valida = true
+					}else{
+						style.PrintMag("Valor inválido\n")
+					}
+				}else{
+					style.PrintMag("Valor inválido, digite o número da carta!\n")
+				}
+			}
+		}
+	}
+	
+	return deck
 }
