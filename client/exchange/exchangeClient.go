@@ -112,8 +112,12 @@ func HandleExchange(nc *nats.Conn, server models.ServerInfo, user *shared.User){
     fmt.Println("------------------------------------------")
 
     utils.HandleClientSeeCards(nc, server, user.UserId)
+    //para obrigar o usuario a trocar o deck
+    fmt.Print("\n\n")
+    style.PrintMag("    Modifique o seu deck para as\npróximas partidas:")
+    utils.HandleChangeDeckClient(nc, server, user.UserId, user)
 
-    fmt.Println("Pressione ENTER para voltar ao menu...")
+    fmt.Println("\nPressione ENTER para voltar ao menu...")
 	fmt.Scanln()
 
 }
