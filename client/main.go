@@ -1,26 +1,27 @@
 package main
 
 import (
-	"os"
-	"log"
-	"fmt"
-	"time"
-	"syscall"
-	"strconv"
-	"os/signal"
 	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
+	"time"
 
-	"pbl/style"
-	"pbl/shared"
-	"pbl/client/game"
-	"pbl/client/utils"
-	"pbl/client/models"
 	"pbl/client/exchange"
+	"pbl/client/game"
+	"pbl/client/models"
+	"pbl/client/utils"
+	"pbl/shared"
+	"pbl/style"
 
 	"github.com/nats-io/nats.go"
 )
 
 func main() {
+	style.Clear()
 	servers := []models.ServerInfo{
 		{ID: 1, Name: "Servidor 1", NATS: "nats://localhost:4223"},
 		{ID: 2, Name: "Servidor 2", NATS: "nats://localhost:4224"},

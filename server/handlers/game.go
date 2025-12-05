@@ -78,6 +78,18 @@ func HandleGameMessage(server *models.Server, request shared.Request, nc *nats.C
         resultP1 := game.CheckWinner(cardP1, cardP2)
         NotifyResult(nc, room, resultP1)
 
+		var result int
+		switch resultP1{
+		case "EMPATE":
+			result = 0
+		case "GANHOU":
+			result = 1
+		case "PERDEU":
+			result = 2
+
+		}
+		go server.Blockchain.RegistrarPartida(room.Player1.UserName, room.Player2.UserName, result)
+		
         // Limpa cartas para a próxima rodada
         room.PlayersCards = make(map[string]shared.Card)
         return
@@ -235,6 +247,18 @@ func processHostCard(server *models.Server, room *shared.GameRoom, gameMsg share
 		log.Printf("[HOST] %s: %s vs %s: %s", room.Player1.UserName, cardP1.Element, room.Player2.UserName, cardP2.Element)
 
 		resultP1 := game.CheckWinner(cardP1, cardP2)
+
+		var result int
+		switch resultP1{
+		case "EMPATE":
+			result = 0
+		case "GANHOU":
+			result = 1
+		case "PERDEU":
+			result = 2
+
+		}
+		go server.Blockchain.RegistrarPartida(room.Player1.UserName, room.Player2.UserName, result)
 
 		notifyPlayerResult(server, nc, room, resultP1, room.Player1.UserId, room.Server1ID)
 		notifyPlayerResult(server, nc, room, resultP1, room.Player2.UserId, room.Server2ID)

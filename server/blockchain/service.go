@@ -20,34 +20,56 @@ const (
 )
 
 type EthereumService struct {
-	client   *ethclient.Client
-	registro *Registro
-	auth     *bind.TransactOpts
-    mu       sync.Mutex 
+	client    *ethclient.Client
+	auth      *bind.TransactOpts
+	registro  *Registro  
+	historico *Historico 
+	
+    mu        sync.Mutex
 }
 
 // Inicia a conexão
-func NewEthereumService(privateKey string, registro_add string) (*EthereumService, error) {
+func NewEthereumService(privateKeyHex, addrRegistroHex, addrHistoricoHex string) (*EthereumService, error) {
 	client, err := ethclient.Dial(RPC_URL)
+	if err != nil {
+		return nil, fmt.Errorf("falha ao conectar RPC: %v", err)
+	}
+
+	if len(privateKeyHex) > 2 && privateKeyHex[:2] == "0x" {
+		privateKeyHex = privateKeyHex[2:]
+	}
+
+	privateKey, err := crypto.HexToECDSA(privateKeyHex)
+	if err != nil {
+		return nil, fmt.Errorf("chave privada inválida: %v", err)
+	}
+
+	auth, err := bind.NewKeyedTransactorWithChainID(privateKey, big.NewInt(int64(CHAIN_ID)))
+	if err != nil {
+		return nil, fmt.Errorf("erro ao criar autenticador: %v", err)
+	}
+
+	if !common.IsHexAddress(addrRegistroHex) {
+		return nil, fmt.Errorf("endereço registro inválido")
+	}
+	registroInst, err := NewRegistro(common.HexToAddress(addrRegistroHex), client)
 	if err != nil {
 		return nil, err
 	}
 
-	privK, _ := crypto.HexToECDSA(privateKey)
-	auth, _ := bind.NewKeyedTransactorWithChainID(privK, big.NewInt(int64(CHAIN_ID)))
-
-	m := fmt.Sprintf("endereço do registro %s", registro_add)
-	style.PrintMag(m)
-	address := common.HexToAddress(registro_add)
-	instance, err := NewRegistro(address, client)
+	if !common.IsHexAddress(addrHistoricoHex) {
+		return nil, fmt.Errorf("endereço historico inválido")
+	}
+	historicoInst, err := NewHistorico(common.HexToAddress(addrHistoricoHex), client)
 	if err != nil {
 		return nil, err
 	}
 
 	return &EthereumService{
-		client:   client,
-		registro: instance,
-		auth:     auth,
+		client:    client,
+		registro:  registroInst, 
+		historico: historicoInst,
+		auth:      auth,
 	}, nil
 }
 
@@ -73,4 +95,25 @@ func (s *EthereumService) CriarCarta(playerAddress string, id, elemento, tipo st
     }
 
     return tx.Hash().Hex(), nil
+}
+
+//grava o resultado do jogo na blockchain
+//resultado: 0 (Empate), 1 (Vitoria Jogador 1), 2 (Vitoria Jogador 2)
+func (s *EthereumService) RegistrarPartida(jogador1, jogador2 string, resultado int) (string, error) {
+	style.PrintVerd("vamos resgistrar a partida :)")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if resultado < 0 || resultado > 2 {
+		return "", fmt.Errorf("resultado inválido: deve ser 0 (empate), 1 (j1) ou 2 (j2)")
+	}
+
+	nonce, _ := s.client.PendingNonceAt(context.Background(), s.auth.From)
+	s.auth.Nonce = big.NewInt(int64(nonce))
+
+	tx, err := s.historico.RegistrarPartida(s.auth, jogador1, jogador2, uint8(resultado))
+	if err != nil {
+		return "", err
+	}
+	return tx.Hash().Hex(), nil
 }

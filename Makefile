@@ -11,13 +11,13 @@ NATS_PORT_3 := 4225
 # ========================================================
 
 # EDITE AQUI AS CAHVES DAS CONTAS 0, 1 e 2 DO GANACHE (tirar os 0x no inicio da chave)
-KEY_SERVER_1 := "776b0127939ca656b6b9bb32e038225ee09808fe6b232ec6fae9be3fa80b145a"
-KEY_SERVER_2 := "5115dcaac01f26161f82c7c2763c650246c8af4ef6091cbb948243f93de74882"
-KEY_SERVER_3 := "7e306d64d973a21f97128659c2d2ce4b44aba6b018d374486df98e49e3ee2c53"
+KEY_SERVER_1 := "SUA_CHAVE_GANACHE0"
+KEY_SERVER_2 := "SUA_CHAVE_GANACHE1"
+KEY_SERVER_3 := "SUA_CHAVE_GANACHE2"
 
 # Endereços dos Contratos (Resultado do make deploy)
-CONTRACT_ADDR_REGISTRO := "0x0875d6d5099C5Cc41a6E3bB5811A85285bf555f1" 
-CONTRACT_ADDR_HISTORICO := "0xC681B51feFb088077469889760B4FdB7821f0245"
+CONTRACT_ADDR_REGISTRO := "SEU_ENDEREÇO_REGISTRO" 
+CONTRACT_ADDR_HISTORICO := "SEU_ENDEREÇO_HISTORICO"
 # ========================================================
 
 .PHONY: run-pair1 run-pair2 run-pair3 run-client stop-all-nats server1 server2 server3 stop-prod-nats client build clean help

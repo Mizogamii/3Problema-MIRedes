@@ -19,7 +19,7 @@ const (
 	CHAIN_ID    = 1337
 	
 	// Substitir pela chave de uma conta ganache
-	ADMIN_KEY   = "776b0127939ca656b6b9bb32e038225ee09808fe6b232ec6fae9be3fa80b145a"
+	ADMIN_KEY   = "SUA_CHAVE_GANACHE0"
 )
 
 func main() {

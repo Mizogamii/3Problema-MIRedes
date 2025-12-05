@@ -336,7 +336,7 @@ func TestIntegration_StressOpenPack(t *testing.T) {
 	}
 	t.Parallel() // Permite rodar em paralelo com outros testes
 
-	const CLIENT_COUNT = 50 // 50 clientes simultâneos
+	const CLIENT_COUNT = 200 // 50 clientes simultâneos
 	log.Printf("[STRESS_PACK] Iniciando teste com %d clientes...", CLIENT_COUNT)
 
 	var wg sync.WaitGroup
@@ -389,7 +389,7 @@ func TestIntegration_StressMatchmaking(t *testing.T) {
 	}
 	t.Parallel() // Permite rodar em paralelo com outros testes
 
-	const CLIENT_COUNT = 50 
+	const CLIENT_COUNT = 200 
 	log.Printf("[STRESS_MATCH] Iniciando teste com %d clientes...", CLIENT_COUNT)
 
 	var wg sync.WaitGroup

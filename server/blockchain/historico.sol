@@ -1,12 +1,17 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract HistoricoDePartidas {
-    
-    event NovaPartida(string vencedor, string perdedor, string placar, uint256 data);
+contract Historico {
+    // 0 = EMPATE
+    // 1 = VITORIA_JOGADOR_1
+    // 2 = VITORIA_JOGADOR_2
+    enum Resultado { EMPATE, VITORIA_J1, VITORIA_J2 }
 
-    function registrarResultado(string memory _vencedor, string memory _perdedor, string memory _placar) public {
-        // 2. Em vez de salvar numa variável, nós "emitimos" o evento
-        // Isso grava no log do bloco permanentemente.
-        emit NovaPartida(_vencedor, _perdedor, _placar, block.timestamp);
+    event NovaPartida(string jogador1, string jogador2, Resultado resultado, uint256 data);
+
+    function registrarPartida(string memory _j1, string memory _j2, uint8 _resultado) public {
+        require(_resultado <= 2, "Resultado invalido (use 0, 1 ou 2)");
+        
+        emit NovaPartida(_j1, _j2, Resultado(_resultado), block.timestamp);
     }
 }

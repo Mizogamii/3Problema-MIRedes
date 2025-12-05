@@ -23,7 +23,7 @@ import (
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 )
 
-func StartServer(idString, port, peersEnv, natsURL, privateKey, registro_add, historico_add string) error {
+func StartServer(idString, port, peersEnv, natsURL, privateKey, registroAdd, historicoAdd string) error {
 	style.Clear()
 	id, _ := strconv.Atoi(idString)
 	if port == "" {
@@ -33,7 +33,7 @@ func StartServer(idString, port, peersEnv, natsURL, privateKey, registro_add, hi
 	peerInfos := parsePeers(peersEnv)
 	server := models.NewServer(id, port, peerInfos)
 
-    ethService, err := blockchain.NewEthereumService(privateKey, registro_add) 
+    ethService, err := blockchain.NewEthereumService(privateKey, registroAdd, historicoAdd) 
     if err != nil {
         log.Printf("⚠️ AVISO: Não foi possível conectar na Blockchain: %v", err)
     } else {
