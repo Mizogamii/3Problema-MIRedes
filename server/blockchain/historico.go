@@ -31,8 +31,8 @@ var (
 
 // HistoricoMetaData contains all meta data concerning the Historico contract.
 var HistoricoMetaData = &bind.MetaData{
-	ABI: "[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"string\",\"name\":\"jogador1\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"jogador2\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"enumHistorico.Resultado\",\"name\":\"resultado\",\"type\":\"uint8\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"data\",\"type\":\"uint256\"}],\"name\":\"NovaPartida\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_j1\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"_j2\",\"type\":\"string\"},{\"internalType\":\"uint8\",\"name\":\"_resultado\",\"type\":\"uint8\"}],\"name\":\"registrarPartida\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
-	Bin: "0x6080604052348015600f57600080fd5b506105328061001f6000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c806333896cea14610030575b600080fd5b61004a6004803603810190610045919061027d565b61004c565b005b60028160ff161115610093576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161008a9061038b565b60405180910390fd5b7f56cc181ac353627e55fa5eccf2e64c91f74aae5a157dc1cf0acadc1a97237b5783838360ff1660028111156100cc576100cb6103ab565b5b426040516100dd94939291906104a9565b60405180910390a1505050565b6000604051905090565b600080fd5b600080fd5b600080fd5b600080fd5b6000601f19601f8301169050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b61015182610108565b810181811067ffffffffffffffff821117156101705761016f610119565b5b80604052505050565b60006101836100ea565b905061018f8282610148565b919050565b600067ffffffffffffffff8211156101af576101ae610119565b5b6101b882610108565b9050602081019050919050565b82818337600083830152505050565b60006101e76101e284610194565b610179565b90508281526020810184848401111561020357610202610103565b5b61020e8482856101c5565b509392505050565b600082601f83011261022b5761022a6100fe565b5b813561023b8482602086016101d4565b91505092915050565b600060ff82169050919050565b61025a81610244565b811461026557600080fd5b50565b60008135905061027781610251565b92915050565b600080600060608486031215610296576102956100f4565b5b600084013567ffffffffffffffff8111156102b4576102b36100f9565b5b6102c086828701610216565b935050602084013567ffffffffffffffff8111156102e1576102e06100f9565b5b6102ed86828701610216565b92505060406102fe86828701610268565b9150509250925092565b600082825260208201905092915050565b7f526573756c7461646f20696e76616c69646f202875736520302c2031206f752060008201527f3229000000000000000000000000000000000000000000000000000000000000602082015250565b6000610375602283610308565b915061038082610319565b604082019050919050565b600060208201905081810360008301526103a481610368565b9050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602160045260246000fd5b600081519050919050565b60005b838110156104035780820151818401526020810190506103e8565b60008484015250505050565b600061041a826103da565b6104248185610308565b93506104348185602086016103e5565b61043d81610108565b840191505092915050565b60038110610459576104586103ab565b5b50565b600081905061046a82610448565b919050565b600061047a8261045c565b9050919050565b61048a8161046f565b82525050565b6000819050919050565b6104a381610490565b82525050565b600060808201905081810360008301526104c3818761040f565b905081810360208301526104d7818661040f565b90506104e66040830185610481565b6104f3606083018461049a565b9594505050505056fea2646970667358221220708a27bd6836dfd614a08193d9da252b90e462b051c19452e8e6af833ba511cd64736f6c634300081e0033",
+	ABI: "[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"string\",\"name\":\"jogador1\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"jogador2\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"resultado\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"data\",\"type\":\"uint256\"}],\"name\":\"NovaPartida\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_j1\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"_j2\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"_resultado\",\"type\":\"string\"}],\"name\":\"registrarPartida\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	Bin: "0x6080604052348015600f57600080fd5b506103b78061001f6000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c80631c2b2a6c14610030575b600080fd5b61004a600480360381019061004591906101e8565b61004c565b005b7fb9e7345d75df19b69bead6028780b38813ca9fd034ce46ac9bf34185c4b5346f838383426040516100819493929190610327565b60405180910390a1505050565b6000604051905090565b600080fd5b600080fd5b600080fd5b600080fd5b6000601f19601f8301169050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6100f5826100ac565b810181811067ffffffffffffffff82111715610114576101136100bd565b5b80604052505050565b600061012761008e565b905061013382826100ec565b919050565b600067ffffffffffffffff821115610153576101526100bd565b5b61015c826100ac565b9050602081019050919050565b82818337600083830152505050565b600061018b61018684610138565b61011d565b9050828152602081018484840111156101a7576101a66100a7565b5b6101b2848285610169565b509392505050565b600082601f8301126101cf576101ce6100a2565b5b81356101df848260208601610178565b91505092915050565b60008060006060848603121561020157610200610098565b5b600084013567ffffffffffffffff81111561021f5761021e61009d565b5b61022b868287016101ba565b935050602084013567ffffffffffffffff81111561024c5761024b61009d565b5b610258868287016101ba565b925050604084013567ffffffffffffffff8111156102795761027861009d565b5b610285868287016101ba565b9150509250925092565b600081519050919050565b600082825260208201905092915050565b60005b838110156102c95780820151818401526020810190506102ae565b60008484015250505050565b60006102e08261028f565b6102ea818561029a565b93506102fa8185602086016102ab565b610303816100ac565b840191505092915050565b6000819050919050565b6103218161030e565b82525050565b6000608082019050818103600083015261034181876102d5565b9050818103602083015261035581866102d5565b9050818103604083015261036981856102d5565b90506103786060830184610318565b9594505050505056fea264697066735822122037d5976f7c9eddcd150efd93f9f9053a000b52aec969163304bc3537b3d6e98e64736f6c634300081e0033",
 }
 
 // HistoricoABI is the input ABI used to generate the binding from.
@@ -202,24 +202,24 @@ func (_Historico *HistoricoTransactorRaw) Transact(opts *bind.TransactOpts, meth
 	return _Historico.Contract.contract.Transact(opts, method, params...)
 }
 
-// RegistrarPartida is a paid mutator transaction binding the contract method 0x33896cea.
+// RegistrarPartida is a paid mutator transaction binding the contract method 0x1c2b2a6c.
 //
-// Solidity: function registrarPartida(string _j1, string _j2, uint8 _resultado) returns()
-func (_Historico *HistoricoTransactor) RegistrarPartida(opts *bind.TransactOpts, _j1 string, _j2 string, _resultado uint8) (*types.Transaction, error) {
+// Solidity: function registrarPartida(string _j1, string _j2, string _resultado) returns()
+func (_Historico *HistoricoTransactor) RegistrarPartida(opts *bind.TransactOpts, _j1 string, _j2 string, _resultado string) (*types.Transaction, error) {
 	return _Historico.contract.Transact(opts, "registrarPartida", _j1, _j2, _resultado)
 }
 
-// RegistrarPartida is a paid mutator transaction binding the contract method 0x33896cea.
+// RegistrarPartida is a paid mutator transaction binding the contract method 0x1c2b2a6c.
 //
-// Solidity: function registrarPartida(string _j1, string _j2, uint8 _resultado) returns()
-func (_Historico *HistoricoSession) RegistrarPartida(_j1 string, _j2 string, _resultado uint8) (*types.Transaction, error) {
+// Solidity: function registrarPartida(string _j1, string _j2, string _resultado) returns()
+func (_Historico *HistoricoSession) RegistrarPartida(_j1 string, _j2 string, _resultado string) (*types.Transaction, error) {
 	return _Historico.Contract.RegistrarPartida(&_Historico.TransactOpts, _j1, _j2, _resultado)
 }
 
-// RegistrarPartida is a paid mutator transaction binding the contract method 0x33896cea.
+// RegistrarPartida is a paid mutator transaction binding the contract method 0x1c2b2a6c.
 //
-// Solidity: function registrarPartida(string _j1, string _j2, uint8 _resultado) returns()
-func (_Historico *HistoricoTransactorSession) RegistrarPartida(_j1 string, _j2 string, _resultado uint8) (*types.Transaction, error) {
+// Solidity: function registrarPartida(string _j1, string _j2, string _resultado) returns()
+func (_Historico *HistoricoTransactorSession) RegistrarPartida(_j1 string, _j2 string, _resultado string) (*types.Transaction, error) {
 	return _Historico.Contract.RegistrarPartida(&_Historico.TransactOpts, _j1, _j2, _resultado)
 }
 
@@ -294,14 +294,14 @@ func (it *HistoricoNovaPartidaIterator) Close() error {
 type HistoricoNovaPartida struct {
 	Jogador1  string
 	Jogador2  string
-	Resultado uint8
+	Resultado string
 	Data      *big.Int
 	Raw       types.Log // Blockchain specific contextual infos
 }
 
-// FilterNovaPartida is a free log retrieval operation binding the contract event 0x56cc181ac353627e55fa5eccf2e64c91f74aae5a157dc1cf0acadc1a97237b57.
+// FilterNovaPartida is a free log retrieval operation binding the contract event 0xb9e7345d75df19b69bead6028780b38813ca9fd034ce46ac9bf34185c4b5346f.
 //
-// Solidity: event NovaPartida(string jogador1, string jogador2, uint8 resultado, uint256 data)
+// Solidity: event NovaPartida(string jogador1, string jogador2, string resultado, uint256 data)
 func (_Historico *HistoricoFilterer) FilterNovaPartida(opts *bind.FilterOpts) (*HistoricoNovaPartidaIterator, error) {
 
 	logs, sub, err := _Historico.contract.FilterLogs(opts, "NovaPartida")
@@ -311,9 +311,9 @@ func (_Historico *HistoricoFilterer) FilterNovaPartida(opts *bind.FilterOpts) (*
 	return &HistoricoNovaPartidaIterator{contract: _Historico.contract, event: "NovaPartida", logs: logs, sub: sub}, nil
 }
 
-// WatchNovaPartida is a free log subscription operation binding the contract event 0x56cc181ac353627e55fa5eccf2e64c91f74aae5a157dc1cf0acadc1a97237b57.
+// WatchNovaPartida is a free log subscription operation binding the contract event 0xb9e7345d75df19b69bead6028780b38813ca9fd034ce46ac9bf34185c4b5346f.
 //
-// Solidity: event NovaPartida(string jogador1, string jogador2, uint8 resultado, uint256 data)
+// Solidity: event NovaPartida(string jogador1, string jogador2, string resultado, uint256 data)
 func (_Historico *HistoricoFilterer) WatchNovaPartida(opts *bind.WatchOpts, sink chan<- *HistoricoNovaPartida) (event.Subscription, error) {
 
 	logs, sub, err := _Historico.contract.WatchLogs(opts, "NovaPartida")
@@ -348,9 +348,9 @@ func (_Historico *HistoricoFilterer) WatchNovaPartida(opts *bind.WatchOpts, sink
 	}), nil
 }
 
-// ParseNovaPartida is a log parse operation binding the contract event 0x56cc181ac353627e55fa5eccf2e64c91f74aae5a157dc1cf0acadc1a97237b57.
+// ParseNovaPartida is a log parse operation binding the contract event 0xb9e7345d75df19b69bead6028780b38813ca9fd034ce46ac9bf34185c4b5346f.
 //
-// Solidity: event NovaPartida(string jogador1, string jogador2, uint8 resultado, uint256 data)
+// Solidity: event NovaPartida(string jogador1, string jogador2, string resultado, uint256 data)
 func (_Historico *HistoricoFilterer) ParseNovaPartida(log types.Log) (*HistoricoNovaPartida, error) {
 	event := new(HistoricoNovaPartida)
 	if err := _Historico.contract.UnpackLog(event, "NovaPartida", log); err != nil {

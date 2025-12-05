@@ -99,19 +99,19 @@ func (s *EthereumService) CriarCarta(playerAddress string, id, elemento, tipo st
 
 //grava o resultado do jogo na blockchain
 //resultado: 0 (Empate), 1 (Vitoria Jogador 1), 2 (Vitoria Jogador 2)
-func (s *EthereumService) RegistrarPartida(jogador1, jogador2 string, resultado int) (string, error) {
+func (s *EthereumService) RegistrarPartida(jogador1, jogador2 string, resultado string) (string, error) {
 	style.PrintVerd("vamos resgistrar a partida :)")
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if resultado < 0 || resultado > 2 {
+	/*if resultado < 0 || resultado > 2 {
 		return "", fmt.Errorf("resultado inválido: deve ser 0 (empate), 1 (j1) ou 2 (j2)")
-	}
+	}*/
 
 	nonce, _ := s.client.PendingNonceAt(context.Background(), s.auth.From)
 	s.auth.Nonce = big.NewInt(int64(nonce))
 
-	tx, err := s.historico.RegistrarPartida(s.auth, jogador1, jogador2, uint8(resultado))
+	tx, err := s.historico.RegistrarPartida(s.auth, jogador1, jogador2, resultado)
 	if err != nil {
 		return "", err
 	}
