@@ -2,6 +2,7 @@ package blockchain
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"fmt"
 	"math/big"
 	"pbl/style"
@@ -9,13 +10,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 const (
 	RPC_URL          = "http://127.0.0.1:7545"
-	//REGISTRO_ADDRESS = "ENDEREÇO_CONTRATO_REGISTRO" //TODO: mover essa contante para variavel do ambiente
     CHAIN_ID         = 1337
 )
 
@@ -24,7 +25,8 @@ type EthereumService struct {
 	auth      *bind.TransactOpts
 	registro  *Registro  
 	historico *Historico 
-	
+	privateKey *ecdsa.PrivateKey 
+
     mu        sync.Mutex
 }
 
@@ -70,6 +72,7 @@ func NewEthereumService(privateKeyHex, addrRegistroHex, addrHistoricoHex string)
 		registro:  registroInst, 
 		historico: historicoInst,
 		auth:      auth,
+		privateKey: privateKey,
 	}, nil
 }
 
@@ -116,4 +119,82 @@ func (s *EthereumService) RegistrarPartida(jogador1, jogador2 string, resultado 
 		return "", err
 	}
 	return tx.Hash().Hex(), nil
+}
+
+//move uma carta de um usuário para outro.
+func (s *EthereumService) TransferirCarta(senderPrivateKeyHex string, cardID string, newOwnerAddressHex string) (string, error) {
+	
+	if len(senderPrivateKeyHex) > 2 && senderPrivateKeyHex[:2] == "0x" {
+		senderPrivateKeyHex = senderPrivateKeyHex[2:]
+	}
+	userKey, err := crypto.HexToECDSA(senderPrivateKeyHex)
+	if err != nil {
+		return "", fmt.Errorf("chave privada do usuário inválida: %v", err)
+	}
+
+	userAuth, err := bind.NewKeyedTransactorWithChainID(userKey, big.NewInt(int64(CHAIN_ID)))
+	if err != nil {
+		return "", fmt.Errorf("erro ao criar auth do usuário: %v", err)
+	}
+
+	nonce, err := s.client.PendingNonceAt(context.Background(), userAuth.From)
+	if err != nil {
+		return "", fmt.Errorf("falha ao obter nonce do usuário: %v", err)
+	}
+	userAuth.Nonce = big.NewInt(int64(nonce))
+
+	if !common.IsHexAddress(newOwnerAddressHex) {
+		return "", fmt.Errorf("endereço de destino inválido")
+	}
+	newOwner := common.HexToAddress(newOwnerAddressHex)
+
+	tx, err := s.registro.TransferirCard(userAuth, cardID, newOwner)
+	if err != nil {
+		return "", err
+	}
+
+	return tx.Hash().Hex(), nil
+}
+
+//envia 0.5 eth para novos usuarios poderem realizar trocas
+func (s *EthereumService) EnviarEther(destinatarioHex string) (string, error) {
+    s.mu.Lock()
+    defer s.mu.Unlock()
+
+    if !common.IsHexAddress(destinatarioHex) {
+        return "", fmt.Errorf("endereço inválido")
+    }
+    toAddress := common.HexToAddress(destinatarioHex)
+
+    fromAddress := crypto.PubkeyToAddress(s.privateKey.PublicKey)
+    nonce, err := s.client.PendingNonceAt(context.Background(), fromAddress)
+    if err != nil {
+        return "", err
+    }
+
+    value := new(big.Int)
+    value.SetString("50000000000000000", 10) // 0.05 ETH
+
+    gasLimit := uint64(21000) 
+    gasPrice, err := s.client.SuggestGasPrice(context.Background())
+    if err != nil {
+        return "", err
+    }
+
+    tx := types.NewTransaction(nonce, toAddress, value, gasLimit, gasPrice, nil)
+
+    chainID := big.NewInt(int64(CHAIN_ID))
+    signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), s.privateKey)
+    if err != nil {
+        return "", err
+    }
+
+    err = s.client.SendTransaction(context.Background(), signedTx)
+    if err != nil {
+        return "", err
+    }
+
+    s.auth.Nonce = big.NewInt(int64(nonce + 1))
+
+    return signedTx.Hash().Hex(), nil
 }

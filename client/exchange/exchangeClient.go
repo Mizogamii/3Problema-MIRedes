@@ -1,15 +1,15 @@
 package exchange
 
-import(
+import (
 	"fmt"
-    "log"
-    "time"
+	"log"
+	"time"
 
 	"encoding/json"
 
+	"pbl/client/models"
 	"pbl/shared"
 	"pbl/style"
-    "pbl/client/models"
 
 	"pbl/client/utils"
 
@@ -18,9 +18,11 @@ import(
 
 //Local
 func HandleExchange(nc *nats.Conn, server models.ServerInfo, user *shared.User){
-    cards := utils.HandleClientSeeCards(nc, server, user.UserId)
+    cards := utils.HandleClientSeePackCards(nc, server, user.UserId)
+    //m := fmt.Sprintf("cartas do cliente: %i", len(cards))
+    //style.PrintCian(m)
     if cards == nil || len(cards) == 0 {
-        fmt.Println("Você não tem cartas para trocar!")
+        fmt.Println("Você não tem cartas para trocar!\nabra pacotes para conseguir mais cartas")
         return
     }
 

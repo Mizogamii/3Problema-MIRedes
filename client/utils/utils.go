@@ -1,23 +1,23 @@
 package utils
 
 import (
-	"os"
-	"log"
-	"fmt"
-	"math"
-	"time"
 	"bufio"
-	"strconv"
-	"runtime"
-	"strings"
-	"os/exec"
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
-	
-	"pbl/style"
-	"pbl/shared"
+	"fmt"
+	"log"
+	"math"
+	"os"
+	"os/exec"
+	"runtime"
+	"strconv"
+	"strings"
+	"time"
+
 	"pbl/client/models"
+	"pbl/shared"
+	"pbl/style"
 
 	"github.com/nats-io/nats.go"
 )
@@ -190,4 +190,49 @@ func ChoseDeck(cards []shared.Card) []shared.Card{
 	}
 	
 	return deck
+}
+
+func HandleClientSeePackCards(nc *nats.Conn, server models.ServerInfo, clientID string)[]shared.Card{
+	//fmt.Println("Buscando cartas...")
+	req := shared.Request{
+		ClientID: clientID,
+		Action: "SEE_CARDS",
+		Payload: nil,
+	}
+	reqData,_ := json.Marshal(req)
+
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+
+	if err != nil {
+		log.Printf("Erro na requisição para pegar carta: %v", err)
+		return nil// Sai da função imediatamente para evitar o crash
+	}
+
+	if msg == nil || msg.Data == nil{
+		log.Printf("O servidor retornou uma resposta vazia.")
+		return nil
+	}
+
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		log.Printf("Erro ao decodificar resposta do inventário: %v", err)
+		return nil
+	}
+
+	if response.Status == "success"{
+		var inventario shared.Cards
+		if err := json.Unmarshal(response.Data, &inventario); err != nil {
+			log.Printf("Erro ao decodificar os dados do inventario: %v", err)
+			return nil
+		}
+		packCards := inventario.Cards[5:]
+		MostrarInventario(packCards)
+		return packCards
+	} else {
+		msg := fmt.Sprintf("\n[FALHA] Não foi possível ver inventário: %s\n", response.Error)
+		style.PrintVerm(msg)
+	}
+
+	return nil
 }

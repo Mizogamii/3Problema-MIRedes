@@ -89,10 +89,24 @@ func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, m
     }
 
 	user.ServerID = server.ID
-	adderss,key := utils.GenerateNewWallet()
+	address,key := utils.GenerateNewWallet()
 
-	user.Address = adderss
+	user.Address = address
 	user.PrivateKey = key
+
+	if server.Blockchain != nil {
+        // Fazemos em goroutine para o login ser instantâneo
+        go func(destAddr string) {
+            log.Printf("[Faucet] Enviando ETH para %s...", destAddr)
+            tx, err := server.Blockchain.EnviarEther(destAddr)
+            if err != nil {
+                log.Printf("❌ [Faucet Erro] %v", err)
+            } else {
+                log.Printf("✅ [Faucet Sucesso] ETH enviado! Tx: %s", tx)
+            }
+        }(address)
+    }
+
     //Armazena o usuário logado
     server.Users[request.ClientID] = user
     log.Printf("[%d] - Usuário '%s' conectado com ClientID '%s'", server.ID, user.UserName, request.ClientID)
