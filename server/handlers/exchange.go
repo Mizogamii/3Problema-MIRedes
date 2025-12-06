@@ -244,6 +244,12 @@ func SwapCards(server *models.Server, s *shared.ExchangeSession) {
 		
 		if !cardRemoved {
 			log.Printf("[SwapCards] AVISO: Carta %s não encontrada em %s", s.Card1.Element, player1.UserName)
+		}else{
+			if player1.PrivateKey != "" && s.Player2.Address != "" {
+				triggerBlockchainTransfer(server, player1.PrivateKey, s.Card1.Id, s.Player2.Address)
+			} else {
+				log.Printf("⚠️ [Blockchain] Não foi possível transferir P1->P2 (falta chave ou endereço).")
+			}
 		}
 
 		player1.Cards = append(player1.Cards, s.Card2)
@@ -278,6 +284,12 @@ func SwapCards(server *models.Server, s *shared.ExchangeSession) {
 		
 		if !cardRemoved {
 			log.Printf("[SwapCards] AVISO: Carta %s não encontrada em %s", s.Card2.Element, player2.UserName)
+		}else{
+			if player2.PrivateKey != "" && s.Player1.Address != "" {
+				triggerBlockchainTransfer(server, player2.PrivateKey, s.Card2.Id, s.Player1.Address)
+			} else {
+				log.Printf("⚠️ [Blockchain] Não foi possível transferir P2->P1 (falta chave ou endereço).")
+			}
 		}
 
 		player2.Cards = append(player2.Cards, s.Card1)
@@ -588,3 +600,19 @@ func HandleExecuteSwap(server *models.Server, nc *nats.Conn) http.HandlerFunc {
 	}
 }
 
+func triggerBlockchainTransfer(server *models.Server, senderPrivateKey, cardID, targetAddress string) {
+	if server.Blockchain == nil {
+		return
+	}
+	go func() {
+		log.Printf("🔄 [Blockchain] Transferindo carta %s para %s...", cardID, targetAddress)
+		
+		txHash, err := server.Blockchain.TransferirCarta(senderPrivateKey, cardID, targetAddress)
+		
+		if err != nil {
+			log.Printf("❌ [Blockchain] Erro na troca: %v", err)
+		} else {
+			log.Printf("✅ [Blockchain] Carta transferida! Tx: %s", txHash)
+		}
+	}()
+}
