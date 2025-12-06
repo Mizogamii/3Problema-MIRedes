@@ -200,7 +200,12 @@ func LeaderJoinGlobalQueueHandler(server *models.Server) http.HandlerFunc {
 }
 
 func SendToGlobalQueue(entry shared.QueueEntry, server *models.Server) {
+	server.Matchmaking.IsLeader = server.Raft.State() == raft.Leader
+	eLiderCara := fmt.Sprintf("é lider: %v", server.Matchmaking.IsLeader)
+	style.PrintAma(eLiderCara)
+
     if server.Matchmaking.IsLeader {
+		style.PrintAz("entrou na condição")
         cmdData, _ := json.Marshal(sharedRaft.Command{
             Type: sharedRaft.CommandQueueJoinGlobal,
             Data: utils.MustMarshal(entry),
@@ -212,14 +217,14 @@ func SendToGlobalQueue(entry shared.QueueEntry, server *models.Server) {
         }
         
         // Tentar criar partidas e notificar
-        go func() {
+        /*go func() {
             time.Sleep(50 * time.Millisecond)
             createdRooms := server.FSM.TryMatchPlayers()
             
             for _, room := range createdRooms {
                 NotifyServersAboutMatch(room, server)
             }
-        }()
+        }()*/
         
         return
     }
@@ -255,17 +260,40 @@ func NotifyServersAboutMatch(room *shared.GameRoom, server *models.Server) {
         return
     }
 
+    // Servidores que precisam receber a notificação
+    targetServers := map[int]bool{
+        room.Server1ID: true,
+        room.Server2ID: true,
+    }
+
+    log.Printf("[Notify] Sala %s: Server1ID=%d, Server2ID=%d, LíderAtual=%d", 
+        room.ID, room.Server1ID, room.Server2ID, server.ID)
+
+    // 1. NOTIFICA O PRÓPRIO SERVIDOR SE ELE ESTIVER NA PARTIDA
+    if targetServers[server.ID] {
+        style.PrintAma(fmt.Sprintf("[Notify] ✓ Notificando servidor LOCAL (server%d)", server.ID))
+        utils.NotifyClients(*room, server)
+    }
+
+    // 2. NOTIFICA APENAS OS PEERS QUE ESTÃO NA PARTIDA
     for _, peer := range server.Peers {
+        if !targetServers[peer.ID] {
+            style.PrintVerm(fmt.Sprintf("[Notify] ✗ Pulando server%d (não está na partida)", peer.ID))
+            continue
+        }
+
         url := peer.URL + "/notify-match"
-        go func(url string) {
+        peerID := peer.ID
+        
+        go func(url string, serverID int) {
             resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
             if err != nil {
-                log.Printf("[Notify] Erro ao enviar para %s: %v", url, err)
+                style.PrintVerm(fmt.Sprintf("[Notify] ✗ Erro ao enviar para server%d: %v", serverID, err))
                 return
             }
             resp.Body.Close()
-			style.PrintMag("NOTIFICAÇÃO ENVIADA!")
-            log.Printf("[Notify] Notificação enviada para %s", url)
-        }(url)
+            style.PrintMag(fmt.Sprintf("NOTIFICAÇÃO ENVIADA para server%d!", serverID))
+            log.Printf("[Notify] Notificação enviada para server%d (%s)", serverID, url)
+        }(url, peerID)
     }
 }

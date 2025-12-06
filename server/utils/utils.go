@@ -59,42 +59,41 @@ func MustMarshal(v interface{}) json.RawMessage {
 }
 
 func NotifyClients(room shared.GameRoom, server *models.Server) {
-    _, err := json.Marshal(room)
+    data, err := json.Marshal(room)
     if err != nil {
         log.Printf("[NotifyClients] Erro ao serializar sala: %v", err)
         return
     }
 
-    // Cria mensagem no formato esperado pelo listener global
-    gameMsg := shared.GameMessage{
-        Type: "GLOBAL_MATCH_CREATED",
-        Data: MustMarshal(room),
+    resp := shared.Response{
+        Action: "MATCH",
+        Status: "success",
+        Data:   data,
+        Server: server.ID,
     }
-    msgData := MustMarshal(gameMsg)
     
+    msgData, _ := json.Marshal(resp)
     nc := server.Matchmaking.Nc
 
     // Notifica Player1 se estiver neste servidor
-    if room.Server1ID == server.ID {
-        topic1 := fmt.Sprintf("server.%d.client.%s", server.ID, room.Player1.UserId)
+    if room.Server1ID == server.ID && room.Player1 != nil {
+        topic1 := fmt.Sprintf("client.%s.inbox", room.Player1.UserId)
         if err := nc.Publish(topic1, msgData); err != nil {
-            log.Printf("[NotifyClients] - Erro ao notificar Player1: %v", err)
+            log.Printf("[NotifyClients] Erro ao notificar Player1: %v", err)
         } else {
-            log.Printf("[Server %d] - Match GLOBAL enviado para %s via %s", 
+            log.Printf("[Server %d] ✅ Match enviado para %s via %s", 
                 server.ID, room.Player1.UserName, topic1)
         }
     }
 
     // Notifica Player2 se estiver neste servidor
-    if room.Server2ID == server.ID {
-        topic2 := fmt.Sprintf("server.%d.client.%s", server.ID, room.Player2.UserId)
+    if room.Server2ID == server.ID && room.Player2 != nil {
+        topic2 := fmt.Sprintf("client.%s.inbox", room.Player2.UserId)
         if err := nc.Publish(topic2, msgData); err != nil {
             log.Printf("[NotifyClients] Erro ao notificar Player2: %v", err)
         } else {
-            log.Printf("[Server %d] - Match GLOBAL enviado para %s via %s", 
+            log.Printf("[Server %d] ✅ Match enviado para %s via %s", 
                 server.ID, room.Player2.UserName, topic2)
         }
     }
-    
-    log.Printf("[NotifyClients] Notificação concluída para sala %s", room.ID)
 }

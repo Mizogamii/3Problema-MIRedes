@@ -1,10 +1,11 @@
 package game
 
 import (
-	"log"
-	"fmt"
-	"time"
 	"encoding/json"
+	"fmt"
+	"log"
+	"strings"
+	"time"
 
 	"pbl/shared"
 	"pbl/style"
@@ -13,17 +14,48 @@ import (
 )
 
 func HandleStartGlobalMatchListener(serverID int, nc *nats.Conn, clientID string, matchChan chan<- MatchInfo) *nats.Subscription {
-	// Tópico específico do cliente no servidor
-	clientTopic := fmt.Sprintf("server.%d.client.%s", serverID, clientID)
+	// MUDAR PARA O MESMO TÓPICO do match local
+	clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
 
 	sub, err := nc.Subscribe(clientTopic, func(msg *nats.Msg) {
+		// PRIMEIRO tenta como Response (usado por MATCH)
+		var resp shared.Response
+		if err := json.Unmarshal(msg.Data, &resp); err == nil {
+			// Se for um MATCH (local ou global)
+			if resp.Action == "MATCH" {
+				var room shared.GameRoom
+				if err := json.Unmarshal(resp.Data, &room); err != nil {
+					log.Println("Erro ao decodificar sala:", err)
+					return
+				}
+
+				var opponent shared.User
+				if room.Player1.UserId == clientID {
+					opponent = *room.Player2
+				} else {
+					opponent = *room.Player1
+				}
+
+				// Determina se é global baseado no ID da sala
+				isGlobal := strings.HasPrefix(room.ID, "global-")
+
+				matchChan <- MatchInfo{
+					Opponent: opponent,
+					Room:     room,
+					IsGlobal: isGlobal,
+				}
+
+				log.Printf("[Cliente] Nova partida recebida! Sala: %s, Global: %v", room.ID, isGlobal)
+				return
+			}
+		}
+
 		var gameMsg shared.GameMessage
 		if err := json.Unmarshal(msg.Data, &gameMsg); err != nil {
-			log.Println("Erro ao decodificar mensagem de partida global:", err)
+			log.Println("Erro ao decodificar mensagem:", err)
 			return
 		}
 
-		// Apenas processa partidas globais
 		if gameMsg.Type == "GLOBAL_MATCH_CREATED" {
 			var room shared.GameRoom
 			if err := json.Unmarshal(gameMsg.Data, &room); err != nil {
@@ -31,7 +63,6 @@ func HandleStartGlobalMatchListener(serverID int, nc *nats.Conn, clientID string
 				return
 			}
 
-			// Determina quem é o adversário
 			var opponent shared.User
 			if room.Player1.UserId == clientID {
 				opponent = *room.Player2
@@ -39,14 +70,11 @@ func HandleStartGlobalMatchListener(serverID int, nc *nats.Conn, clientID string
 				opponent = *room.Player1
 			}
 
-			// Envia para o canal do cliente
 			matchChan <- MatchInfo{
 				Opponent: opponent,
 				Room:     room,
 				IsGlobal: true,
 			}
-
-			//log.Printf("[Cliente] Nova partida global recebida! Sala: %s, Adversário: %s", room.ID, opponent.UserName)
 		}
 	})
 
@@ -55,7 +83,7 @@ func HandleStartGlobalMatchListener(serverID int, nc *nats.Conn, clientID string
 		return nil
 	}
 
-	//log.Printf("[Cliente] Inscrito no tópico global: %s", clientTopic)
+	log.Printf("[Cliente] Inscrito no tópico: %s", clientTopic)
 	return sub
 }
 
@@ -80,7 +108,7 @@ func PlayGlobalGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.Use
 	alreadyPlayed := false
 	gameMsgChan := make(chan shared.GameMessage, 10)
 
-	clientTopic := fmt.Sprintf("server.%d.client.%s", currentUser.ServerID, currentUser.UserId)
+	clientTopic := fmt.Sprintf("client.%s.inbox", currentUser.UserId)
 	//log.Printf("[Cliente] Inscrito no tópico: %s", clientTopic)
 	
 	sub, err := nc.Subscribe(clientTopic, func(msg *nats.Msg) {
