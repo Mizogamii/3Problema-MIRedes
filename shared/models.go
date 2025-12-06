@@ -17,15 +17,15 @@ type GameMessage struct {
 }
 
 type User struct {
-	UserName string `json:"username"`
-	UserId   string `json:"user_id"`
-	Password string `json:"password"`
-	Cards    []Card `json:"cards"`
-	Deck     []Card `json:"deck"`
-	Status   string `json:"status"`
-	ServerID int    `json:"server_id"`
-	Address string `json:"address"`
-	PrivateKey string `json:"privateKey"`
+	UserName       string `json:"username"`
+	UserId         string `json:"user_id"`
+	Password       string `json:"password"`
+	Cards          []Card `json:"cards"`
+	Deck           []Card `json:"deck"`
+	Status         string `json:"status"`
+	ServerID       int    `json:"server_id"`
+	Address        string `json:"address"`
+	PrivateKey     string `json:"privateKey"`
 	ExchangeStatus string `json:"exchangeStatus"`
 }
 
@@ -99,23 +99,24 @@ type ExchangeRequest struct {
 }
 
 type ExchangeSession struct {
-	ID string `json:"id"`
-    Player1 *User `json:"player1"`
-    Player2 *User `json:"player2"`
-    Card1   Card `json:"card1"`
-    Card2   Card `json:"card2"`
-	Server1ID int `json:"server1_id,omitempty"`
-	Server2ID int `json:"server2_id,omitempty"` 
+	ID        string `json:"id"`
+	Player1   *User  `json:"player1"`
+	Player2   *User  `json:"player2"`
+	Card1     Card   `json:"card1"`
+	Card2     Card   `json:"card2"`
+	Server1ID int    `json:"server1_id,omitempty"`
+	Server2ID int    `json:"server2_id,omitempty"`
 }
 type ExchangeNotification struct {
-    SessionID string
-    YouSend   Card
-    YouGet    Card
-    Partner   string
+	SessionID string
+	YouSend   Card
+	YouGet    Card
+	Partner   string
 }
 
 type ExchangeQueueEntry struct {
 	Player    User      `json:"user"`
-	Card      Card      `json:"card"`       
+	Card      Card      `json:"card"`
 	Timestamp time.Time `json:"timestamp"`
+	ServerID int `json:"server_id"`
 }

@@ -155,18 +155,22 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 		fsm.GlobalQueueMu.Unlock()
 		return nil
 
-		case sharedRaft.CommandQueueJoinGlobalExchange:
-			var entry shared.ExchangeQueueEntry
-			if err := json.Unmarshal(cmd.Data, &entry); err != nil {
-				log.Printf("[FSM] Erro ao decodificar QUEUE_JOIN_GLOBAL_EXCHANGE: %v", err)
-				return err
-			}
+	case sharedRaft.CommandQueueJoinGlobalExchange:
+		var entry shared.ExchangeQueueEntry
+		if err := json.Unmarshal(cmd.Data, &entry); err != nil {
+			log.Printf("[FSM] Erro ao decodificar QUEUE_JOIN_GLOBAL_EXCHANGE: %v", err)
+			return err
+		}
+
+		log.Printf("[FSM] Processando entrada na fila: %s (carta: %s, serverID: %d)", entry.Player.UserName, entry.Card.Element, entry.ServerID)
 
 		exists := false
 		fsm.GlobalExchangeQueueMu.Lock()
+
 		for _, e := range fsm.GlobalExchangeQueue {
 			if e.Player.UserId == entry.Player.UserId {
 				exists = true
+				log.Printf("[FSM] Jogador %s JÁ está na fila!", entry.Player.UserName)
 				break
 			}
 		}
@@ -174,7 +178,10 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 			fsm.GlobalExchangeQueue = append(fsm.GlobalExchangeQueue, entry)
 			log.Printf("[FSM] Usuário %s adicionado à fila de trocas global (carta: %s)",
 				entry.Player.UserName, entry.Card.Element)
+		}else{
+			log.Printf("[FSM] Entrada duplicada ignorada: %s", entry.Player.UserName)
 		}
+
 		fsm.GlobalExchangeQueueMu.Unlock()
 		return nil
 
@@ -354,6 +361,9 @@ func (fsm *FSM) TryMatchExchangeGlobal() []*shared.ExchangeSession {
 
 		entry1 := fsm.GlobalExchangeQueue[0]
 		entry2 := fsm.GlobalExchangeQueue[1]
+
+		log.Printf("[FSM] TryMatch: emparelhando %s (S%d, carta:%s) <-> %s (S%d, carta:%s)", entry1.Player.UserName, entry1.ServerID, entry1.Card.Element, entry2.Player.UserName, entry2.ServerID, entry2.Card.Element)
+
 		fsm.GlobalExchangeQueue = fsm.GlobalExchangeQueue[2:]
 		fsm.GlobalExchangeQueueMu.Unlock()
 
@@ -363,9 +373,8 @@ func (fsm *FSM) TryMatchExchangeGlobal() []*shared.ExchangeSession {
 			Player2:   &entry2.Player,
 			Card1:     entry1.Card,
 			Card2:     entry2.Card,
-			Server1ID: entry1.Player.ServerID,
-			Server2ID: entry2.Player.ServerID,
-		
+			Server1ID: entry1.ServerID,
+			Server2ID: entry2.ServerID,
 		}
 
 		log.Printf("[FSM] Tentando criar sessão de troca: %s (%s[%s] <-> %s[%s])",

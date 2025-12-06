@@ -81,7 +81,7 @@ func NotifyClients(room shared.GameRoom, server *models.Server) {
         if err := nc.Publish(topic1, msgData); err != nil {
             log.Printf("[NotifyClients] Erro ao notificar Player1: %v", err)
         } else {
-            log.Printf("[Server %d] ✅ Match enviado para %s via %s", 
+            log.Printf("[Server %d] - Match enviado para %s via %s", 
                 server.ID, room.Player1.UserName, topic1)
         }
     }
@@ -92,7 +92,7 @@ func NotifyClients(room shared.GameRoom, server *models.Server) {
         if err := nc.Publish(topic2, msgData); err != nil {
             log.Printf("[NotifyClients] Erro ao notificar Player2: %v", err)
         } else {
-            log.Printf("[Server %d] ✅ Match enviado para %s via %s", 
+            log.Printf("[Server %d] - Match enviado para %s via %s", 
                 server.ID, room.Player2.UserName, topic2)
         }
     }

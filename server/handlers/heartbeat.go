@@ -14,7 +14,7 @@ import(
 
 const (
 	heartbeatInterval = 10 * time.Second
-	disconnectTimeout = 30 * time.Second
+	disconnectTimeout = 50 * time.Second
 )
 
 //Heartbeat
