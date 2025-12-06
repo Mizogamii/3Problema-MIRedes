@@ -46,6 +46,17 @@ func JoinExchangeQueue(server *models.Server, request shared.Request, nc *nats.C
 		return
 	}
 
+	//Verifica se já está na fila
+	if user.ExchangeStatus != ""{
+		resp := shared.Response{
+			Status: "error",
+			Error: fmt.Sprintf("Já está dentro da fila de troca(%s)", user.ExchangeStatus),
+			}
+			data, _ := json.Marshal(resp)
+			nc.Publish(msg.Reply, data)
+			return
+		}
+
 	// Verifica se o usuário realmente tem a carta oferecida
 	hasCard := false
 	for _, c := range user.Cards {
@@ -65,6 +76,11 @@ func JoinExchangeQueue(server *models.Server, request shared.Request, nc *nats.C
 		return
 	}
 
+	server.Mu.Lock()
+	user.ExchangeStatus = "LOCALQUEUE"
+	server.Users[entry.Player.UserId] = user
+	server.Mu.Unlock()
+
 	server.Exchange.Mutex.Lock()
 	for _, e := range server.Exchange.LocalQueue {
 		if e.Player.UserId == entry.Player.UserId {
@@ -80,9 +96,10 @@ func JoinExchangeQueue(server *models.Server, request shared.Request, nc *nats.C
 	}
 	
 	entry.Timestamp = time.Now()
+	entry.Player.ExchangeStatus = "LOCALQUEUE"
 	server.Exchange.LocalQueue = append(server.Exchange.LocalQueue, entry)
 	log.Printf("Jogador %s entrou na fila de troca do servidor %d", entry.Player.UserName, server.ID)
-	log.Printf("Fila local atual tem %d jogadores", len(server.Exchange.LocalQueue))
+	//log.Printf("Fila local atual tem %d jogadores", len(server.Exchange.LocalQueue))
 	
 	server.Exchange.Mutex.Unlock()
 
@@ -98,6 +115,7 @@ func JoinExchangeQueue(server *models.Server, request shared.Request, nc *nats.C
 }
 
 func MatchLocalExchangeQueue(server *models.Server, nc *nats.Conn) {
+	style.PrintAz("Entrou no matchlocal em")
 	server.Exchange.Mutex.Lock()
 	defer server.Exchange.Mutex.Unlock()
 
@@ -112,6 +130,11 @@ func MatchLocalExchangeQueue(server *models.Server, nc *nats.Conn) {
 			reqPlayer1.Player.UserName, reqPlayer1.CardOffered.Element,
 			reqPlayer2.Player.UserName, reqPlayer2.CardOffered.Element)
 
+		//altera o status da troca no cliente --> para fila local
+		reqPlayer1.Player.ExchangeStatus = "LOCALQUEUE"
+	
+		reqPlayer2.Player.ExchangeStatus = "LOCALQUEUE"
+
 		// Troca das cartas
 		SwapCards(server, session)
 
@@ -124,6 +147,7 @@ func MatchLocalExchangeQueue(server *models.Server, nc *nats.Conn) {
 }
 
 func CreateExchangeSession(reqPlayer1, reqPlayer2 shared.ExchangeRequest, nc *nats.Conn, serverID int) *shared.ExchangeSession {
+	style.PrintMag("Entrou na função de criar a sessão local")
 	sessionID := utils.GenerateRoomID(serverID)
 	
 	// Cria ponteiros para os players
@@ -141,6 +165,7 @@ func CreateExchangeSession(reqPlayer1, reqPlayer2 shared.ExchangeRequest, nc *na
 }
 
 func notifyPlayers(session *shared.ExchangeSession, nc *nats.Conn) {
+	style.PrintCian("Entrou pra notificar os jogadores")
 	// Notificação para o Player1
 	notif1 := shared.ExchangeNotification{
 		SessionID: session.ID,
@@ -149,7 +174,7 @@ func notifyPlayers(session *shared.ExchangeSession, nc *nats.Conn) {
 		Partner:   session.Player2.UserName,
 	}
 	data1, _ := json.Marshal(notif1)
-
+	
 	// Notificação para o Player2
 	notif2 := shared.ExchangeNotification{
 		SessionID: session.ID,
@@ -166,6 +191,7 @@ func notifyPlayers(session *shared.ExchangeSession, nc *nats.Conn) {
 }
 
 func SwapCards(server *models.Server, s *shared.ExchangeSession) {
+	style.PrintVerm("Entrou no swap")
 	server.Mu.Lock()
 	defer server.Mu.Unlock()
 
@@ -179,7 +205,7 @@ func SwapCards(server *models.Server, s *shared.ExchangeSession) {
 		s.Player1.UserName, s.Player1.UserId,
 		s.Player2.UserName, s.Player2.UserId)
 
-	// Player1 - pode ou não estar neste servidor
+	// Player1 
 	player1, hasPlayer1 := server.Users[s.Player1.UserId]
 	if hasPlayer1 {
 		log.Printf("[SwapCards] Player1 (%s) encontrado neste servidor", s.Player1.UserName)
@@ -201,6 +227,7 @@ func SwapCards(server *models.Server, s *shared.ExchangeSession) {
 
 		// Adiciona a carta recebida
 		player1.Cards = append(player1.Cards, s.Card2)
+		player1.ExchangeStatus = "" //reseta o status apos finalizar a troca
 		server.Users[s.Player1.UserId] = player1
 		
 		log.Printf("[SwapCards] %s agora tem %d cartas (recebeu %s)", 
@@ -210,7 +237,7 @@ func SwapCards(server *models.Server, s *shared.ExchangeSession) {
 			s.Player1.UserName, server.ID)
 	}
 
-	// Player2 - pode ou não estar neste servidor
+	// Player2
 	player2, hasPlayer2 := server.Users[s.Player2.UserId]
 	if hasPlayer2 {
 		log.Printf("[SwapCards] Player2 (%s) encontrado neste servidor", s.Player2.UserName)
@@ -232,6 +259,7 @@ func SwapCards(server *models.Server, s *shared.ExchangeSession) {
 
 		// Adiciona a carta recebida
 		player2.Cards = append(player2.Cards, s.Card1)
+		player2.ExchangeStatus = "" //reseta status apos finalizar 
 		server.Users[s.Player2.UserId] = player2
 		
 		log.Printf("[SwapCards] %s agora tem %d cartas (recebeu %s)", 
@@ -242,9 +270,11 @@ func SwapCards(server *models.Server, s *shared.ExchangeSession) {
 	}
 
 	if hasPlayer1 && hasPlayer2 {
-		log.Printf("[SwapCards] ✓ Troca LOCAL completa: %s (%s) <-> %s (%s)",
+		msg := fmt.Sprintf("[SwapCards] ✓ Troca LOCAL completa: %s (%s) <-> %s (%s)",
 			player1.UserName, s.Card2.Element,
 			player2.UserName, s.Card1.Element)
+		style.PrintMag(msg)
+
 	} else if hasPlayer1 {
 		log.Printf("[SwapCards] ✓ Troca parcial: %s recebeu %s (Player2 em outro servidor)",
 			player1.UserName, s.Card2.Element)
@@ -255,6 +285,9 @@ func SwapCards(server *models.Server, s *shared.ExchangeSession) {
 }
 
 func MonitorExchangeLocalQueue(server *models.Server, nc *nats.Conn) {
+	msg := fmt.Sprintf("[S%d] MonitorExchangeLocalQueue iniciado", server.ID)
+	style.PrintVerm(msg)
+
 	ticker := time.NewTicker(1 * time.Second)
 	
 	log.Printf("[Monitor Exchange] Iniciado para servidor %d", server.ID)
@@ -264,7 +297,7 @@ func MonitorExchangeLocalQueue(server *models.Server, nc *nats.Conn) {
 
 		server.Exchange.Mutex.Lock()
 
-		// Debug: mostra o estado da fila a cada tick
+		// mostra o estado da fila a cada tick
 		if len(server.Exchange.LocalQueue) > 0 {
 			log.Printf("[Monitor] Fila LOCAL tem %d jogadores", len(server.Exchange.LocalQueue))
 			for idx, e := range server.Exchange.LocalQueue {
@@ -279,12 +312,28 @@ func MonitorExchangeLocalQueue(server *models.Server, nc *nats.Conn) {
 			entry := server.Exchange.LocalQueue[i]
 			waitTime := now.Sub(entry.Timestamp)
 
-			log.Printf("[Monitor] Verificando jogador %s - tempo de espera: %.1fs", 
-				entry.Player.UserName, waitTime.Seconds())
+			log.Printf("[Monitor] Verificando jogador %s - tempo de espera: %.1fs", entry.Player.UserName, waitTime.Seconds())
+			
+			server.Mu.Lock()
+			user, exists := server.Users[entry.Player.UserId]
+			server.Mu.Unlock()
+
+			log.Printf("[DEBUG] Global: Checking %s (exists=%v, status=%s)", entry.Player.UserName, exists, user.ExchangeStatus)
+
+			//Verifca se o usuario existe e se o status foi modificado --> remove da fila
+			if !exists || user.ExchangeStatus == "" {
+				log.Printf("[Monitor] Usuário %s não existe mais ou troca já foi feita, removendo da fila", 
+					entry.Player.UserName)
+				server.Exchange.LocalQueue = append(
+					server.Exchange.LocalQueue[:i],
+					server.Exchange.LocalQueue[i+1:]...,
+				)
+				continue
+			}
 
 			// Match local antes de enviar pra global
 			if len(server.Exchange.LocalQueue) >= 2 && i < len(server.Exchange.LocalQueue)-1 {
-				log.Printf("[Monitor] Tentando match LOCAL (fila tem %d jogadores)", 
+				log.Printf("[Monitor] - Tentando match LOCAL (fila tem %d jogadores)", 
 					len(server.Exchange.LocalQueue))
 				server.Exchange.Mutex.Unlock()
 				MatchLocalExchangeQueue(server, nc)
@@ -295,20 +344,31 @@ func MonitorExchangeLocalQueue(server *models.Server, nc *nats.Conn) {
 			// Passou 5 segundos --> envia para fila global
 			if waitTime >= 5*time.Second {
 				style.PrintVerm("ENVIANDO PARA FILA GLOBAL")
+
+				server.Mu.Lock()
+				realUser := server.Users[entry.Player.UserId]
+				realUser.ExchangeStatus = "GLOBALQUEUE"
+				server.Users[entry.Player.UserId] = realUser
+				server.Mu.Unlock()
+
 				log.Printf("Jogador: %s", entry.Player.UserName)
 				log.Printf("UserID: %s", entry.Player.UserId)
 				log.Printf("Carta: %s ║", entry.CardOffered.Element)
 				log.Printf("Tempo de espera: %.1f segundos", waitTime.Seconds())
-	
+				
+				server.Mu.Lock()
+				user.ExchangeStatus = "GLOBALQUEUE"
+				server.Users[entry.Player.UserId] = user
+				server.Mu.Unlock()
+				
 				exchangeQueueEntry := shared.ExchangeQueueEntry{
-					Player:    entry.Player,
+					Player:    user,
 					Card:      entry.CardOffered,
 					Timestamp: entry.Timestamp,
 				}
 
 				server.Exchange.Mutex.Unlock()
 				
-				// Envia para global
 				SendToExchangeGlobalQueue(exchangeQueueEntry, server)
 				
 				// Verifica fila global após envio
@@ -336,10 +396,14 @@ func MonitorExchangeLocalQueue(server *models.Server, nc *nats.Conn) {
 }
 
 func SendToExchangeGlobalQueue(entry shared.ExchangeQueueEntry, server *models.Server) {
-	log.Printf("[SendToGlobal] Iniciando envio para fila global")
+	style.PrintVerd("[SendToGlobal] Iniciando envio para fila global\n")
 	log.Printf("[SendToGlobal] Jogador: %s, Carta: %s", entry.Player.UserName, entry.Card.Element)
-	log.Printf("[SendToGlobal] É líder? %v", server.Exchange.IsLeader)
+	server.Exchange.IsLeader = server.Raft.State() == raft.Leader
+	
 	isLeader := server.Raft != nil && server.Raft.State() == raft.Leader
+	style.PrintMag("PERGUNTANDO DE NOVO")
+	log.Printf("[SendToGlobal] É líder? %v", server.Exchange.IsLeader)
+
 	
 	if isLeader {
 		log.Printf("[SendToGlobal] Este servidor É O LÍDER - adicionando via Raft")
@@ -359,9 +423,9 @@ func SendToExchangeGlobalQueue(entry shared.ExchangeQueueEntry, server *models.S
 		log.Printf("[Exchange Líder] - Jogador %s adicionado à fila GLOBAL de trocas", entry.Player.UserName)
 		
 		// Mostra fila global atual
+		style.PrintVerd("Printando lista global")
 		globalUsers := ListGlobalExchangeQueue(server)
-		log.Printf("[Exchange Líder] - Fila GLOBAL atual: %v (total: %d)", 
-			globalUsers, len(globalUsers))
+		log.Printf("[Exchange Líder] - Fila GLOBAL atual: %v (total: %d)", globalUsers, len(globalUsers))
 
 		go func() {
 			time.Sleep(100 * time.Millisecond)
@@ -434,7 +498,8 @@ func ListGlobalExchangeQueue(server *models.Server) []string {
 
 
 func NotifyServersAboutExchangeMatch(session *shared.ExchangeSession, server *models.Server) {
-	log.Printf("[Exchange] Notificando servidores sobre sessão %s", session.ID)
+	msg := fmt.Sprintf("[Exchange] Notificando servidores sobre sessão %s", session.ID)
+	style.PrintAma(msg)
 	log.Printf("[Exchange] Player1: %s (UserID: %s) @ Server%d", 
 		session.Player1.UserName, session.Player1.UserId, session.Server1ID)
 	log.Printf("[Exchange] Player2: %s (UserID: %s) @ Server%d", 
@@ -534,6 +599,8 @@ func getServerAddress(serverID int, server *models.Server) string {
 }
 
 func HandleExecuteSwap(server *models.Server, nc *nats.Conn) http.HandlerFunc {
+	style.PrintVerm("Entrou na função de swap")
+	fmt.Println("ENVIANDO NOTIFICAÇÃO. Leader atual:", server.Raft.Leader())
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
@@ -555,6 +622,7 @@ func HandleExecuteSwap(server *models.Server, nc *nats.Conn) http.HandlerFunc {
 
 		// Executa a troca localmente
 		SwapCards(server, &session)
+
 
 		server.Mu.Lock()
 		_, hasPlayer1 := server.Users[session.Player1.UserId]
@@ -592,6 +660,7 @@ func HandleExecuteSwap(server *models.Server, nc *nats.Conn) http.HandlerFunc {
 }
 
 func HandleJoinGlobalExchange(server *models.Server) http.HandlerFunc {
+	style.PrintMag("Entrou na função de inserir na fila global")
     return func(w http.ResponseWriter, r *http.Request) {
         if r.Method != http.MethodPost {
             http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)

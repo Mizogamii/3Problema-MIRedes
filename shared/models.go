@@ -26,6 +26,7 @@ type User struct {
 	ServerID int    `json:"server_id"`
 	Address string `json:"address"`
 	PrivateKey string `json:"privateKey"`
+	ExchangeStatus string `json:"exchangeStatus"`
 }
 
 type Card struct {

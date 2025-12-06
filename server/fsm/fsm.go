@@ -156,11 +156,11 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 		return nil
 
 		case sharedRaft.CommandQueueJoinGlobalExchange:
-		var entry shared.ExchangeQueueEntry
-		if err := json.Unmarshal(cmd.Data, &entry); err != nil {
-			log.Printf("[FSM] Erro ao decodificar QUEUE_JOIN_GLOBAL_EXCHANGE: %v", err)
-			return err
-		}
+			var entry shared.ExchangeQueueEntry
+			if err := json.Unmarshal(cmd.Data, &entry); err != nil {
+				log.Printf("[FSM] Erro ao decodificar QUEUE_JOIN_GLOBAL_EXCHANGE: %v", err)
+				return err
+			}
 
 		exists := false
 		fsm.GlobalExchangeQueueMu.Lock()
