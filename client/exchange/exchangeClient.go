@@ -108,13 +108,18 @@ func HandleExchange(nc *nats.Conn, server models.ServerInfo, user *shared.User){
     fmt.Println("\n------------------------------------------")
     fmt.Println("        Você foi pareado para troca!       ")
     fmt.Println("------------------------------------------")
-    fmt.Printf("Sua carta enviada: %v\n", notif.YouSend)
-    fmt.Printf("Carta recebida:    %v\n", notif.YouGet)
+    fmt.Printf("Sua carta enviada: ")
+    utils.PrintCartaCor(notif.YouSend)
+    fmt.Print("\n")
+    fmt.Printf("Carta recebida: ")
+    utils.PrintCartaCor(notif.YouGet)
+    fmt.Print("\n")
 	fmt.Printf("Recebido de: %v\n", notif.Partner)
     fmt.Println("------------------------------------------")
-
+    
     utils.HandleClientSeeCards(nc, server, user.UserId)
     //para obrigar o usuario a trocar o deck
+    style.PrintAma("\n    Troca realizada com sucesso!")
     fmt.Print("\n\n")
     style.PrintMag("    Modifique o seu deck para as\npróximas partidas:")
     utils.HandleChangeDeckClient(nc, server, user.UserId, user)

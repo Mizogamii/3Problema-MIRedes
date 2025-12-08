@@ -14,11 +14,9 @@ import (
 )
 
 func HandleStartGlobalMatchListener(serverID int, nc *nats.Conn, clientID string, matchChan chan<- MatchInfo) *nats.Subscription {
-	// MUDAR PARA O MESMO TÓPICO do match local
 	clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
 
 	sub, err := nc.Subscribe(clientTopic, func(msg *nats.Msg) {
-		// PRIMEIRO tenta como Response (usado por MATCH)
 		var resp shared.Response
 		if err := json.Unmarshal(msg.Data, &resp); err == nil {
 			// Se for um MATCH (local ou global)
@@ -83,7 +81,7 @@ func HandleStartGlobalMatchListener(serverID int, nc *nats.Conn, clientID string
 		return nil
 	}
 
-	log.Printf("[Cliente] Inscrito no tópico: %s", clientTopic)
+	//log.Printf("[Cliente] Inscrito no tópico: %s", clientTopic)
 	return sub
 }
 
